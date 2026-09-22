@@ -1,0 +1,236 @@
+{
+  "load_day_ahead::01::Gradient boosting": {
+    "extra": {},
+    "metrics": {
+      "Bias": 574.8001325351862,
+      "MAE": 1776.4621282697315,
+      "MAPE_%": 3.345436661238367,
+      "R2": 0.8749915756275906,
+      "RMSE": 2400.5148497587925,
+      "Skill": 0.18708092695490885
+    },
+    "model": "Gradient boosting",
+    "n_parameters": null,
+    "notes": "engineered lag + calendar features",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::01::Linear regression": {
+    "extra": {},
+    "metrics": {
+      "Bias": 359.2300815748296,
+      "MAE": 2066.152690156878,
+      "MAPE_%": 3.8918940061157037,
+      "R2": 0.8474386249076975,
+      "RMSE": 2651.899451600632,
+      "Skill": 0.10195113176634274
+    },
+    "model": "Linear regression",
+    "n_parameters": null,
+    "notes": "engineered lag + calendar features",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::01::Random forest": {
+    "extra": {},
+    "metrics": {
+      "Bias": 228.20528409454906,
+      "MAE": 1636.5039202719606,
+      "MAPE_%": 3.067255484535032,
+      "R2": 0.8891172816211343,
+      "RMSE": 2260.823654646924,
+      "Skill": 0.23438646095496374
+    },
+    "model": "Random forest",
+    "n_parameters": null,
+    "notes": "engineered lag + calendar features",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::01::climatology (hour x weekday)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 973.5653521819111,
+      "MAE": 3092.4990627784664,
+      "MAPE_%": 5.863734690596882,
+      "R2": 0.7151186094900464,
+      "RMSE": 3623.8214930128656,
+      "Skill": -0.22718408064707574
+    },
+    "model": "climatology (hour x weekday)",
+    "n_parameters": null,
+    "notes": "trivial baseline",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::01::persistence (h=24) = seasonal naive (24 h)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 30.22447590782123,
+      "MAE": 3358.186263384544,
+      "MAPE_%": 6.37153477394659,
+      "R2": 0.5409243313454564,
+      "RMSE": 4600.201910138279,
+      "Skill": -0.557829093615325
+    },
+    "model": "persistence (h=24) = seasonal naive (24 h)",
+    "n_parameters": null,
+    "notes": "trivial baseline",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::01::seasonal naive (168 h)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 51.784500116387356,
+      "MAE": 2218.9722429003723,
+      "MAPE_%": 4.130462868469327,
+      "R2": 0.8108333143408403,
+      "RMSE": 2952.956732540141,
+      "Skill": 0.0
+    },
+    "model": "seasonal naive (168 h)",
+    "n_parameters": null,
+    "notes": "trivial baseline",
+    "recorded_at": "2026-09-22T16:29:39+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": null,
+    "tutorial": 1
+  },
+  "load_day_ahead::02::MLP (2 hidden layers)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 72.39647813009198,
+      "MAE": 1624.0315144429412,
+      "MAPE_%": 3.0465480670765146,
+      "R2": 0.895935688596893,
+      "RMSE": 2190.2095266582983,
+      "Skill": 0.25829948589383
+    },
+    "model": "MLP (2 hidden layers)",
+    "n_parameters": 11777,
+    "notes": "same engineered features as tutorial 01",
+    "recorded_at": "2026-09-22T16:30:20+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": 6.196569163003005,
+    "tutorial": 2
+  },
+  "load_day_ahead::03::LSTM": {
+    "extra": {},
+    "metrics": {
+      "Bias": 475.7081503788095,
+      "MAE": 1639.269384113543,
+      "MAPE_%": 3.082882782138752,
+      "R2": 0.8895900491983114,
+      "RMSE": 2260.472741613758,
+      "Skill": 0.2511940808166897
+    },
+    "model": "LSTM",
+    "n_parameters": 19992,
+    "notes": "raw 168 h window, 6 channels",
+    "recorded_at": "2026-09-22T16:35:50+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": 88.94071341700328,
+    "tutorial": 3
+  },
+  "load_day_ahead::03::Vanilla RNN": {
+    "extra": {},
+    "metrics": {
+      "Bias": 568.1511216256706,
+      "MAE": 1686.0953702844995,
+      "MAPE_%": 3.189247116111544,
+      "R2": 0.8860126078034745,
+      "RMSE": 2296.8020926577433,
+      "Skill": 0.23915959236609952
+    },
+    "model": "Vanilla RNN",
+    "n_parameters": 6104,
+    "notes": "raw 168 h window, 6 channels",
+    "recorded_at": "2026-09-22T16:35:50+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": 144.9521379910002,
+    "tutorial": 3
+  },
+  "load_day_ahead::06::Transformer (encoder, 2 layers)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 269.3443835785013,
+      "MAE": 1602.9251552512555,
+      "MAPE_%": 3.0087354376707864,
+      "R2": 0.8954058710944298,
+      "RMSE": 2200.1324161463767,
+      "Skill": 0.27118246291200576
+    },
+    "model": "Transformer (encoder, 2 layers)",
+    "n_parameters": 102104,
+    "notes": "raw 168 h window, 6 channels, stride-4 training",
+    "recorded_at": "2026-09-22T19:04:27+00:00",
+    "task": "load_day_ahead",
+    "train_seconds": 288.0296273200074,
+    "tutorial": 6
+  },
+  "load_day_ahead_daily_origins::09::Chronos-2 (zero-shot)": {
+    "extra": {},
+    "metrics": {
+      "Bias": -10.587563027968018,
+      "MAE": 1350.9407239511986,
+      "MAPE_%": 2.5444997145093224,
+      "R2": 0.9309122548307189,
+      "RMSE": 1788.072549404659,
+      "Skill": 0.40670602407803513
+    },
+    "model": "Chronos-2 (zero-shot)",
+    "n_parameters": null,
+    "notes": "365 daily origins, 512 h context, full 24 h horizon",
+    "recorded_at": "2026-09-22T18:42:34+00:00",
+    "task": "load_day_ahead_daily_origins",
+    "train_seconds": null,
+    "tutorial": 9
+  },
+  "load_day_ahead_daily_origins::09::Gradient boosting (specialist)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 285.77173361259526,
+      "MAE": 1300.824421008856,
+      "MAPE_%": 2.4511028212309403,
+      "R2": 0.9375338011941726,
+      "RMSE": 1700.2280079845957,
+      "Skill": 0.43585340809190176
+    },
+    "model": "Gradient boosting (specialist)",
+    "n_parameters": null,
+    "notes": "365 daily origins, 512 h context, full 24 h horizon",
+    "recorded_at": "2026-09-22T18:42:34+00:00",
+    "task": "load_day_ahead_daily_origins",
+    "train_seconds": null,
+    "tutorial": 9
+  },
+  "load_day_ahead_daily_origins::09::LSTM (specialist)": {
+    "extra": {},
+    "metrics": {
+      "Bias": 41.45304413527398,
+      "MAE": 1256.8810769335046,
+      "MAPE_%": 2.3742693187536488,
+      "R2": 0.9410197147261135,
+      "RMSE": 1652.1065801139016,
+      "Skill": 0.45182040746111185
+    },
+    "model": "LSTM (specialist)",
+    "n_parameters": null,
+    "notes": "365 daily origins, 512 h context, full 24 h horizon",
+    "recorded_at": "2026-09-22T18:42:34+00:00",
+    "task": "load_day_ahead_daily_origins",
+    "train_seconds": null,
+    "tutorial": 9
+  }
+}

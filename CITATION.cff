@@ -1,0 +1,69 @@
+cff-version: 1.2.0
+title: "From Machine Learning to Foundation Models: Hands-On Artificial Intelligence for Power & Energy Systems"
+message: "If you use this course in teaching or research, please cite it as below."
+type: software
+authors:
+  - given-names: Steffen
+    family-names: Kortmann
+    email: steffen.kortmann@fit.fraunhofer.de
+version: 1.0.0
+date-released: "2026-09-22"
+license: MIT
+abstract: >-
+  A ten-notebook university course tracing the development of modern artificial
+  intelligence from classical supervised learning to foundation models, using
+  electric power and energy systems as the recurring application domain. Each
+  method is implemented from scratch before the production library is
+  introduced. The course argues that foundation models are a broader paradigm
+  than large language models, and closes by pretraining a small graph-based
+  foundation model across several electrical networks and transferring it to an
+  unseen grid topology.
+keywords:
+  - machine learning
+  - deep learning
+  - foundation models
+  - transformers
+  - graph neural networks
+  - power systems
+  - energy forecasting
+  - teaching materials
+  - reproducible research
+references:
+  - type: article
+    title: "Foundation Models for the Electric Power Grid"
+    authors:
+      - family-names: Hamann
+        given-names: Hendrik F.
+    year: 2024
+    identifiers:
+      - type: other
+        value: "arXiv:2407.09434"
+    notes: "The reference point for the course's capstone tutorial."
+  - type: article
+    title: "On the Opportunities and Risks of Foundation Models"
+    authors:
+      - family-names: Bommasani
+        given-names: Rishi
+    year: 2021
+    identifiers:
+      - type: other
+        value: "arXiv:2108.07258"
+    notes: "The definition of 'foundation model' the course uses and then tightens."
+  - type: article
+    title: "Chronos-2: From Univariate to Universal Forecasting"
+    authors:
+      - family-names: Ansari
+        given-names: Abdul Fatir
+    year: 2025
+    identifiers:
+      - type: other
+        value: "arXiv:2510.15821"
+    notes: "The time-series foundation model evaluated zero-shot in tutorial 09."
+  - type: article
+    title: "pandapower - An Open-Source Python Tool for Convenient Modeling, Analysis, and Optimization of Electric Power Systems"
+    authors:
+      - family-names: Thurner
+        given-names: Leon
+    year: 2018
+    doi: 10.1109/TPWRS.2018.2829021
+    notes: "The power-system engine behind tutorial 10."

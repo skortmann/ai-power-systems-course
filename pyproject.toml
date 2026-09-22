@@ -1,0 +1,98 @@
+[project]
+name = "ai-power-course"
+version = "1.0.0"
+description = "From Machine Learning to Foundation Models — hands-on AI for power and energy systems"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Steffen Kortmann", email = "steffen.kortmann@fit.fraunhofer.de" }]
+keywords = ["machine-learning", "foundation-models", "power-systems", "teaching", "pandapower"]
+
+dependencies = [
+    # scientific core
+    "numpy>=1.26,<3",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "scikit-learn>=1.5",
+    "matplotlib>=3.9",
+    # deep learning
+    "torch>=2.4",
+    # power systems
+    "pandapower>=3.0",
+    "networkx>=3.2",
+    # foundation models
+    "transformers>=4.44",
+    "peft>=0.12",
+    "chronos-forecasting>=2.3",
+    # notebook runtime
+    "jupyterlab>=4.2",
+    "ipykernel>=6.29",
+    "ipywidgets>=8.1",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Realistic German MV/LV benchmark grids. ~90 MB wheel, hence optional:
+# tutorial 10 runs on pandapower's built-in networks without it.
+simbench = ["simbench>=1.6"]
+
+[project.urls]
+Homepage = "https://github.com/iaew/ai-power-systems-course"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+    "nbclient>=0.10",
+    "nbformat>=5.10",
+    "jupytext>=1.16",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_power_course"]
+
+# -- Torch from the CPU wheel index -------------------------------------------
+# The default PyPI torch wheel bundles CUDA and is ~2.5 GB. The course is
+# designed to run on a laptop CPU, so we pull the ~200 MB CPU build instead.
+# GPU users: see docs/course_overview.md for the one-line override.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+# -- Ruff ---------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+# Built notebooks are generated artefacts; their jupytext sources are linted
+# instead (with the relaxations below).
+extend-exclude = ["*.md", "*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The notebook sources are jupytext percent files, not importable modules:
+#   F821  `display` is provided by the IPython kernel, not by the module
+#   E501  most long lines are prose inside `# %% [markdown]` cells
+#   E402  imports appear mid-notebook on purpose, where they are being taught
+#   B007  unused loop variables are common and readable in teaching code
+"tutorials/_sources/*.py" = ["F821", "E501", "E402", "B007"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ai_power_course"]
+
+# -- Pytest -------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+]

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Data that is downloaded rather than committed (see data/README.md)
+data/cache/
+
+# Generated grid datasets. The leaderboard IS committed, so tutorial 10 shows a
+# complete table even before a student has run tutorials 01-09 themselves.
+data/artifacts/*.npz
+
+# Editors
+.idea/
+.vscode/
+.DS_Store
