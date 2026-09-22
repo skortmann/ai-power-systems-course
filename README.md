@@ -172,7 +172,9 @@ The domain evolves alongside the method rather than being bolted on at the end:
 
 ```
 ├── tutorials/              the ten notebooks (committed with outputs)
-│   └── _sources/           their jupytext sources — edit these, not the .ipynb
+│   ├── _sources/           their jupytext sources — edit these, not the .ipynb
+│   ├── exercise.ipynb      44 scaffolded tasks, one chapter per tutorial
+│   └── solution.ipynb      the same tasks, worked and explained
 ├── src/ai_power_course/    the reusable package
 │   ├── data.py             the course dataset, with provenance attached
 │   ├── synthetic.py        the physically motivated data generator
@@ -180,10 +182,12 @@ The domain evolves alongside the method rather than being bolted on at the end:
 │   ├── metrics.py          point, probabilistic and *physical* metrics
 │   ├── diagrams.py         every explanatory figure, as code
 │   ├── models/             baselines, MLP/RNN/LSTM/Transformer, attention, GPT, GNN
-│   └── grid/               pandapower networks, sampling, graphs, physics checks
+│   ├── grid/               pandapower networks, sampling, graphs, physics checks
+│   └── exercises/          the single source for both exercise notebooks
 ├── data/                   see data/README.md for provenance and licensing
-├── scripts/                data download, grid generation, notebook build
-├── tests/                  ~140 tests, including leakage and physics checks
+├── scripts/                data download, grid generation, notebook builds
+├── tests/                  186 tests, including leakage, physics and
+│                           exercise/solution synchronisation checks
 └── docs/                   literature, timeline, glossary, foundation models,
                             course overview, instructor guide
 ```
@@ -199,6 +203,73 @@ The domain evolves alongside the method rather than being bolted on at the end:
 | [`docs/glossary.md`](docs/glossary.md) | precise definitions, pointing at where each idea is built |
 | [`docs/instructor_guide.md`](docs/instructor_guide.md) | timings, likely difficulties, discussion questions, expected outcomes |
 | [`data/README.md`](data/README.md) | why the shipped data is synthetic and how to get the real thing |
+
+---
+
+## The exercise track
+
+Two further notebooks turn the tutorials into work you do rather than read.
+
+| | |
+|---|---|
+| [`tutorials/exercise.ipynb`](tutorials/exercise.ipynb) | 44 tasks with scaffolded code — `# TODO` markers, `____` blanks, function signatures with a docstring and no body |
+| [`tutorials/solution.ipynb`](tutorials/solution.ipynb) | every task worked through, with an explanation of *why* each implementation looks the way it does |
+
+Both are generated from one source,
+[`src/ai_power_course/exercises/`](src/ai_power_course/exercises/), so the task
+a student reads and the task the solution answers cannot drift apart.
+`tests/test_exercises.py` enforces that: matching task ids in matching order,
+byte-identical prompts, a solution for every exercise, and no `TODO`, blank or
+`NotImplementedError` surviving into the solution notebook.
+
+There is one chapter per tutorial, with three to six tasks each:
+
+| Type | Count | What it asks for |
+|---|---|---|
+| Coding | 30 | Implement something. Attention, message passing and backpropagation are written by hand, not imported. |
+| Analysis | 8 | Run an experiment and interpret the numbers. Partly code, mostly judgement. |
+| Reflection | 6 | Write an argument. No code. These are the ones worth discussing with a supervisor. |
+
+Difficulty is marked ★ / ★★ / ★★★ per task, and tasks that reuse earlier work
+say so in their prompt.
+
+### Three ways to use the material
+
+**Self-study.** Work through a tutorial, then its exercise chapter, then check
+yourself. Most tasks end with a self-check cell that runs a few assertions — a
+pass means the shapes and obvious invariants are right, not that the reasoning
+is. Budget roughly the tutorial's runtime again for its exercises.
+
+**Taught course.** Present the tutorial, set the exercise chapter as homework,
+open the next session with the reflection questions. They are written to
+disagree about. [`docs/instructor_guide.md`](docs/instructor_guide.md) gives
+per-chapter timings, the mistakes students actually make, and which task is the
+one to spend the session on.
+
+**Reference implementation.** Ignore the exercises and read
+`solution.ipynb` as a worked catalogue: a permutation-equivariance test for a
+grid encoder, a mask-aware pooling function, a label-efficiency sweep, a
+physics residual check that a good MAE does not survive.
+
+> **Students: do not open `solution.ipynb` until you have attempted the
+> corresponding exercises.** Reading a solution feels like learning and is not.
+> The gap between recognising a correct answer and producing one is the entire
+> skill the course is trying to build.
+
+### Building them
+
+Both notebooks are committed. To rebuild after editing the source:
+
+```bash
+uv run python scripts/build_exercise_notebooks.py
+```
+
+`solution.ipynb` is executed end to end as part of that build, so a broken
+solution fails the build rather than reaching a student. `exercise.ipynb` cannot
+be — its task cells are incomplete by design — so the build executes its **setup
+cells** instead. That is the invariant worth knowing if you write your own
+tasks: a chapter's setup may never read a variable a student was asked to
+create, or the notebook stops working for anyone who has not done that task.
 
 ---
 
@@ -269,10 +340,13 @@ its publisher.
 The exercises are not API drills. They ask you to explain why a baseline beat a
 Transformer, to transfer an encoder to a topology excluded from pretraining, to
 decide whether a foundation model's zero-shot win survives a distribution shift.
-Several have no settled answer — the last one in the course is a genuinely open
+Several have no settled answer — the last task in
+[`tutorials/exercise.ipynb`](tutorials/exercise.ipynb) is a genuinely open
 research question:
 
 > **What should the "tokens" of an electrical grid foundation model be?**
 
-If you finish tutorial 10 with a defensible opinion about that, the course has
-done its job.
+The solution notebook answers it with one internally consistent design and says
+plainly that it is not *the* answer. If you finish tutorial 10 with a defensible
+opinion of your own — especially one that disagrees — the course has done its
+job.

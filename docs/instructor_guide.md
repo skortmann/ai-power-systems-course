@@ -1,7 +1,9 @@
 # Instructor guide
 
 Per-notebook timings, the places students reliably get stuck, what the exercises
-are supposed to produce, and questions worth arguing about.
+are supposed to produce, and questions worth arguing about. The separate
+**exercise track** — `tutorials/exercise.ipynb` and its solutions — has its own
+section below, with per-chapter timings and the mistakes students actually make.
 
 Assume **90–120 minutes of contact time per tutorial**, with the notebook run in
 advance (`uv run python scripts/build_notebooks.py`) so nobody watches a progress
@@ -345,6 +347,277 @@ pretraining, physics-informed loss, transfer to unseen topology.
 2. What would have to be true before a GridFM could sit in a control room?
 3. GridSFM trained on 200 grids and 500,000 scenarios. We used seven and a few
    thousand. Which of our conclusions scale and which are artefacts?
+
+---
+
+## The exercise track
+
+[`tutorials/exercise.ipynb`](../tutorials/exercise.ipynb) has one chapter per
+tutorial, 44 tasks in total.
+[`tutorials/solution.ipynb`](../tutorials/solution.ipynb) works every one of them
+through and explains why the implementation looks the way it does. Both are
+generated from `src/ai_power_course/exercises/`, so if you edit a task, rebuild
+with `uv run python scripts/build_exercise_notebooks.py` — that command also
+executes the solution notebook end to end, so a broken answer fails the build
+instead of reaching a student.
+
+**Setting them.** One exercise chapter per tutorial, as homework, is the
+intended cadence. Budget roughly the tutorial's own runtime again for the
+compute, plus the times below for the thinking. The reflection questions are the
+ones to open the next session with; they are written to disagree about, and
+several have more than one defensible answer.
+
+**Marking.** The self-check cells verify shapes and invariants, not reasoning.
+For the analysis tasks, mark the interpretation, not the number — a student who
+reports that their hypothesis failed has done the exercise correctly. For the
+reflection tasks there is no key; the solution notebook gives one strong answer
+and says so.
+
+| Chapter | Time | Hardest | The one to spend the session on |
+|---|---|---|---|
+| 01 Classical ML | 60 min | ★★ | 1.5 — why a good model loses to persistence |
+| 02 Neural networks | 60 min | ★★ | 2.4 — the MLP does *not* clearly win |
+| 03 RNNs and LSTMs | 75 min | ★★★ | 3.4 — a hypothesis that fails |
+| 04 Representation learning | 75 min | ★★★ | 4.3 — the weekend probe fails, and why |
+| 05 Attention | 90 min | ★★★ | 5.1 — the central implementation of the course |
+| 06 Transformers | 90 min | ★★★ | 6.2 — equivariance, and chapter 10 wanting the opposite |
+| 07 Language models | 75 min | ★★★ | 7.5 — "just autocomplete" |
+| 08 Pretrained LLMs | 60 min | ★★★ | 8.4 — scenario 4, fine-tune versus retrieve |
+| 09 Foundation models | 75 min | ★★★ | 9.4(c) — what the experiment does *not* support |
+| 10 Grid foundation models | 120 min | ★★★ | 10.6 — the open question |
+
+Times are contact-equivalent for a student who has done the tutorial, excluding
+compute. Chapters 08 and 09 download pretrained models; have students run the
+setup cells before the session or set `AI_POWER_COURSE_OFFLINE=1`, which makes
+those tasks report and skip while the rest still runs.
+
+---
+
+### Chapter 01 — Classical Machine Learning · 5 tasks · ★–★★
+
+**Objective** Frame a forecasting problem, split it so the split cannot lie, and
+build a baseline worth beating.
+
+**Likely mistakes**
+
+- *Counting lags from the target instead of the forecast origin* in 1.2. This is
+  the leak, and it is invisible: the table builds, the model trains, the score is
+  impossibly good. The task's assertion against the raw series catches it.
+- *Fitting the scaler before splitting* in 1.4. The `Pipeline` makes it
+  structurally impossible; some students will still try to scale up front.
+- *Forgetting the hourly-to-TWh factor* in 1.1. Ask what changes at 15-minute
+  resolution.
+
+**Discussion** 1.5 asks for three mechanisms by which a good model loses to
+persistence. Students reliably find distribution shift and miss "the evaluation
+is not measuring what you think". Push on that one.
+
+---
+
+### Chapter 02 — Neural Networks · 4 tasks · ★–★★
+
+**Objective** Write a gradient step by hand, then earn `loss.backward()`.
+
+**Likely mistakes**
+
+- *Forgetting `in_features = width` inside the layer loop* in 2.2.
+- *Calling `zero_grad` after `backward`* in 2.3. It trains, badly, and nothing
+  errors. Ask them to predict what the loss curve would look like.
+- *Reporting MAE in standardised units* in 2.4. The check catches it with a
+  magnitude assertion; make sure they understand why 0.3 "MW" was the giveaway.
+
+**Discussion** 2.4 is deliberately anticlimactic — the MLP and gradient boosting
+land within a few percent. The point is the argument in the printed output: a
+tree ensemble has no hidden layer to reuse, nothing to transfer, and no way to
+train without labels. That is the thread to chapter 04.
+
+---
+
+### Chapter 03 — RNNs and LSTMs · 4 tasks · ★–★★★
+
+**Objective** Move from a feature table to the sequence itself.
+
+**Likely mistakes**
+
+- *Off-by-one in `create_sequences`* (3.1). The self-check compares against
+  `np.arange`, which makes the error obvious; without it students lose an hour.
+- *Dropping the channel axis.* `nn.LSTM` then reads the sequence length as a
+  feature count and the error message is unhelpful.
+- *Confusing `h_n[-1]` with `output[:, -1, :]`.* Identical for one layer, not for
+  a stack.
+
+**Discussion** 3.4 is the first task where the intuitive hypothesis is wrong:
+recent volatility does *not* predict error on this data. Students dislike
+reporting a negative result about their own idea. Insist on it — the quartile
+comparison alongside the correlation is the habit being taught.
+
+**Note** the accuracy assertion in 3.4's self-check is skipped under
+`AI_POWER_COURSE_FAST=1`, because two epochs cannot beat persistence.
+
+---
+
+### Chapter 04 — Representation Learning · 4 tasks · ★★–★★★
+
+**Objective** The hinge of the course: train with no labels and no task, then
+find the representation useful for a question it never saw.
+
+**Likely mistakes**
+
+- *Scoring the reconstruction everywhere instead of only at masked positions*
+  (4.1). The loss falls beautifully and the representation learns nothing.
+- *Using a constant zero as the mask token.* Zero is a plausible value for a
+  standardised profile, so it is indistinguishable from real data.
+- *Pretraining on everything, then probing.* A leak, and a subtle one — the
+  encoder has seen the evaluation profiles, just without their labels.
+
+**Discussion** 4.3's weekend probe **fails**, and the reason is three cells
+earlier: every day was normalised to zero mean, and a weekend differs mostly in
+*level*. This is the single most valuable moment in the chapter. Preprocessing
+and pretraining objective jointly decide which downstream tasks are possible.
+
+---
+
+### Chapter 05 — Attention · 4 tasks · ★★–★★★
+
+**Objective** Write scaled dot-product attention from the equation. If a student
+does one task from this course properly, make it 5.1.
+
+**Likely mistakes**
+
+- *Softmax along the wrong axis.* Shapes still work, model still trains,
+  computes something else. The self-check's row-sum assertion catches it.
+- *Masking after the softmax* rather than before. Rows no longer sum to one.
+- *Reaching for `nn.MultiheadAttention`.* The task says not to, and the check
+  compares against PyTorch's kernel afterwards, which is the honest way to use it.
+
+**Discussion** 5.4 asks whether a large attention weight is an explanation.
+Expect over-confidence in heatmaps. The three reasons to land: the value vector
+matters as much as the weight; residual connections route around attention
+entirely; different distributions can give identical outputs (Jain & Wallace
+2019). Then ask what ablation would produce *evidence*.
+
+---
+
+### Chapter 06 — Transformers · 4 tasks · ★★–★★★
+
+**Objective** Assemble the architecture, and see what residuals buy.
+
+**Likely mistakes**
+
+- *Scaling by `sqrt(d_model)` instead of `sqrt(d_head)`* in 6.1.
+- *`view` after `transpose` without `.contiguous()`*. PyTorch's error message is
+  clear; the reason is not, so explain the memory layout.
+- *Computing the positional divisor as a direct power* in 6.2. It underflows at
+  large `d_model` and collapses the high-frequency dimensions.
+
+**Discussion** 6.2 demonstrates permutation equivariance and then *breaks* it on
+purpose. Flag forward to 10.1, where the same property is required rather than
+removed. Same layer, opposite requirement, decided by the domain — this is the
+cleanest example in the course of architecture following from the problem.
+
+6.4 is another deliberate non-result. The Transformer does not clearly beat the
+LSTM at this scale, and the honest conclusion is "no meaningful difference".
+
+---
+
+### Chapter 07 — Language Models · 5 tasks · ★★–★★★
+
+**Objective** One causal mask and a vocabulary turn chapter 06 into GPT.
+
+**Likely mistakes**
+
+- *Shifting the target by more or less than one* in 7.1.
+- *Not predicting the untrained loss before measuring it* in 7.2. Make them do
+  it; `log(V)` catches initialisation bugs immediately.
+- *Judging decoding settings by eye* in 7.4. The task requires a numeric
+  diversity measure for a reason.
+
+**Discussion** 7.5 — "just autocomplete". Require the strongest possible version
+of *both* readings before a position. The answer that matters operationally is
+that both readings agree fluency is uncorrelated with correctness, which turns an
+unfalsifiable dispute into three measurable things.
+
+---
+
+### Chapter 08 — Pretrained LLMs and Adaptation · 4 tasks · ★★–★★★
+
+**Objective** Stop training models, start adapting one, and choose the cheapest
+point on the spectrum that works.
+
+**Likely mistakes**
+
+- *Mean pooling without the attention mask* (8.1). The bug the whole task
+  exists for: nothing errors, short sentences are diluted by their batch-mates,
+  accuracy quietly drops.
+- *Skipping L2 normalisation.* Longer texts then dominate every similarity
+  ranking for reasons unrelated to meaning.
+- *Trusting `print_trainable_parameters()`* in 8.3 instead of deriving the count.
+  The derivation is the task.
+
+**Discussion** 8.2's TF-IDF baseline **matches** the embeddings, because the log
+entries are templated. That is a finding about the data. Then 8.4 scenario 4 —
+quarterly-updated grid codes — where the tempting answer is fine-tuning and the
+right one is retrieval. *Fine-tune to change behaviour, retrieve to change
+knowledge.*
+
+---
+
+### Chapter 09 — Foundation Models Beyond LLMs · 4 tasks · ★★–★★★
+
+**Objective** A foundation model with no vocabulary and no tokens, run zero-shot
+against specialists trained on the target data.
+
+**Likely mistakes**
+
+- *Building the harness after loading the model* (9.1). Fixing the protocol first
+  is the point; the reference-scores-zero assertion is the cheap check.
+- *Quantile crossing* going unnoticed in 9.2. The self-check asserts monotonicity.
+- *Reporting coverage without sharpness* in 9.3. An infinitely wide interval has
+  perfect coverage and no value.
+
+**Discussion** 9.4(c): what the experiment does *not* support. One synthetic
+series, one horizon, one cadence. Students will over-generalise; make them write
+the three claims it cannot support. Also worth landing: "zero-shot" means no
+gradient updates on this task, not that the model has never seen anything
+similar — the synthetic data is the only reason the claim is clean here.
+
+---
+
+### Chapter 10 — Towards Grid Foundation Models · 6 tasks · ★★★
+
+**Objective** Pretrain across grids, transfer to one never seen, and validate
+against the physics rather than only the statistics.
+
+**Likely mistakes**
+
+- *Using `perm` where the inverse permutation belongs* in 10.1. Produces a
+  different graph that looks plausible — same shapes, same degree distribution,
+  wrong topology.
+- *Mean instead of sum aggregation* in 10.2. Ask what makes a bus with two
+  incident lines different from one with twenty; the physics is additive.
+- *Masking the slack bus* in 10.3. Its voltage is the angular reference; the
+  resulting loss term is pure noise.
+- *Equalising fine-tuning budgets by epochs rather than steps* in 10.4. The
+  label-efficiency curve then mostly measures the optimisation budget.
+- *Fine-tuning in place across label budgets* instead of deep-copying, so each
+  budget starts from the previous one's weights.
+
+**Discussion** 10.5 is the chapter's argument: an excellent voltage MAE alongside
+a power-balance mismatch of megawatts. The model has learned the *marginal
+distribution* of voltages without the constraints that couple them. It is right
+on average and wrong as a system state — the failure mode MAE cannot see, which
+is why physics validation is reported separately and never averaged in.
+
+**10.6 is the capstone and has no answer key.** Students design their own grid
+foundation model against a ten-point template. Mark **internal consistency**, not
+ambition: the commonest failure is a token choice that cannot support the claimed
+downstream task, such as tokenising whole snapshots and then promising per-bus
+anomaly localisation. The solution notebook gives one worked design and states
+explicitly that it is not *the* answer; a student who argues convincingly that
+branches beat buses as tokens has made a research contribution, not an error.
+
+Good closing question for the course: *what would you have to measure to find
+out which tokenisation is right?*
 
 ---
 
