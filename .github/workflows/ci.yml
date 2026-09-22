@@ -95,6 +95,47 @@ jobs:
           path: tutorials/*.ipynb
           retention-days: 7
 
+  exercises:
+    name: execute the solution notebook
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+
+      - name: Cache Hugging Face downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: hf-${{ runner.os }}-
+
+      # The solution notebook is the contract: if a worked answer no longer
+      # runs, a student would find out before the instructor does.
+      - name: Rebuild and execute both notebooks
+        run: |
+          uv run python -c "
+          import sys; sys.path.insert(0, 'scripts')
+          from build_exercise_notebooks import build
+          build(do_execute=True, timeout=1800)
+          "
+
+      - name: Exercise and solution must still be in sync
+        run: uv run pytest tests/test_exercises.py -q
+
+      - name: Upload the executed notebooks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exercise-notebooks
+          path: |
+            tutorials/exercise.ipynb
+            tutorials/solution.ipynb
+          retention-days: 7
+
   fresh-install:
     name: fresh install from scratch
     runs-on: ubuntu-latest
