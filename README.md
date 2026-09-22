@@ -2,6 +2,8 @@
 
 ### Hands-On Artificial Intelligence for Power & Energy Systems
 
+[![CI](https://github.com/skortmann/ai-power-systems-course/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/skortmann/ai-power-systems-course/actions/workflows/ci.yml?query=branch%3Amain)
+
 A ten-notebook course that walks from linear regression to grid foundation
 models, building every idea from scratch once and then using the production
 library for it — with electrical power systems as the running application
