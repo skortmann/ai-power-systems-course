@@ -505,9 +505,12 @@ CHAPTER_06 = Chapter(
             kind="analysis",
             difficulty=3,
             background="""
-            The claim "Transformers beat RNNs" is about *scale and
-            parallelism*, not about small-data accuracy. At a few thousand training
-            windows on one series, the honest expectation is a tie.
+            "Transformers beat RNNs" is a claim about *scale and parallelism*.
+            It is repeated far more often than it is measured, and the measurement
+            usually comes with conditions attached — sequence length, hardware,
+            parameter budget — that are left out when the claim is repeated.
+
+            Measure it here, and read the whole table rather than one column.
             """,
             instruction="""
             Train a small Transformer forecaster on the same windows chapter 03
@@ -517,9 +520,9 @@ CHAPTER_06 = Chapter(
             requirements=(
                 "Both models see identical data, identical scaling and the same "
                 "number of epochs.",
-                "Report test MAE in MW and training time for each.",
-                "State a conclusion the numbers support — including if it is 'no "
-                "meaningful difference'.",
+                "Report test MAE in MW, parameter count and training time for each.",
+                "State a conclusion the numbers support — and say explicitly "
+                "whether the comparison was fair.",
             ),
             hints=(
                 "Keep both small: `d_model=64`, 2 layers, 4 heads is plenty here.",
@@ -527,8 +530,10 @@ CHAPTER_06 = Chapter(
                 "returns a `History` with `best_val_loss` and `seconds`.",
             ),
             expected="""
-            Comparable accuracy. The Transformer's advantage in this regime is
-            *not* accuracy — say so plainly rather than manufacturing a winner.
+            One of them wins on MAE. Before calling that an architecture result,
+            check whether the two models were the same size and cost the same to
+            train — and see whether the wall-clock column matches what you have
+            heard about Transformers and RNNs.
             """,
             exercise_code="""
             import pandas as pd
@@ -605,26 +610,45 @@ CHAPTER_06 = Chapter(
             comparison = pd.DataFrame(rows).set_index("model")
             display(comparison.round(1))
 
-            spread = comparison["MAE [MW]"].max() / comparison["MAE [MW]"].min() - 1
-            print(f"\\nThe two differ by {spread:.1%} in MAE.")
-            print("\\nAt this scale that is not a result. The Transformer's real advantages")
-            print("are that it trains in parallel over the sequence instead of stepping")
-            print("through it, that its path length between any two positions is 1 rather")
-            print("than O(n), and that it keeps improving as data and parameters grow.")
-            print("None of those are visible on a few thousand windows of one series —")
-            print("which is exactly why chapters 09 and 10 change the data, not the model.")
+            winner = comparison["MAE [MW]"].idxmin()
+            loser = comparison["MAE [MW]"].idxmax()
+            gap = comparison.loc[loser, "MAE [MW]"] / comparison.loc[winner, "MAE [MW]"] - 1
+            size = comparison.loc[winner, "parameters"] / comparison.loc[loser, "parameters"]
+            cost = comparison.loc[winner, "train [s]"] / comparison.loc[loser, "train [s]"]
+            print(f"\\n{winner} has the lower MAE, by {gap:.1%}.")
+            print(f"It also has {size:.1f}x the parameters and took {cost:.1f}x as long.")
+
+            print("\\nSo the comparison is NOT matched, and the accuracy gap cannot be")
+            print("attributed to the architecture on its own. To make the claim properly")
+            print("you would equalise the parameter count and the training budget, and")
+            print("repeat over several seeds. That is the experiment; this is a hint.")
+
+            print("\\nThe wall-clock column is the more interesting result, because it")
+            print("contradicts the folklore directly. 'Transformers are faster than RNNs'")
+            print("is about parallelism over the sequence during training — real on a GPU,")
+            print("with long sequences and large batches. On four CPU threads with a")
+            print("168-step window, the LSTM's sequential loop is cheap and attention's")
+            print("O(n^2) is not. The claim is conditional, and the conditions are exactly")
+            print("what gets dropped when it is repeated.")
+
+            print("\\nThe durable advantages — constant path length between positions, and")
+            print("continued improvement as data and parameters grow — are not visible on")
+            print("a few thousand windows of one series. That is why chapters 09 and 10")
+            print("change the data, not the model.")
             """,
             check_code="""
             assert set(comparison.index) == {"LSTM", "Transformer"}
             assert (comparison["MAE [MW]"] > 0).all()
             assert comparison["MAE [MW]"].max() < 20000, "check the inverse transform"
+            assert (comparison["parameters"] > 0).all(), "report the parameter counts too"
             print("Basic checks passed.")
             """,
             explanation="""
-            The comparison is only meaningful because the optimisation budget is
-            matched: identical epochs, identical learning rate, identical loaders,
-            identical seed before each fit. Comparing a model trained for 12 epochs
-            against one trained for 100 measures the budget, not the architecture.
+            The *optimisation* budget is matched — identical epochs, learning rate,
+            loaders, and a fresh seed before each fit — but the *capacity* budget is
+            not, and the printed output says so rather than quietly claiming an
+            architecture win. Noticing which knobs a comparison holds fixed, and
+            which it does not, is most of what reading a benchmark table consists of.
 
             `set_seed()` inside `fit_and_score` rather than once at the top is
             deliberate — otherwise the second model inherits whatever random state
