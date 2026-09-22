@@ -494,9 +494,10 @@ TRANSFER_STEPS = scaled(full=400, fast=60)
 
 
 def run_transfer(graphs, n_train: int, mode: str, steps: int = TRANSFER_STEPS,
-                 learning_rate: float = 3e-3, seed: int = 0, n_test: int = 100,
+                 learning_rate: float = 3e-3, seed: int = 0, n_test: int | None = None,
                  batch_size: int = 8):
     """Train one condition on ``n_train`` target-grid states; return test MAE of |V|."""
+    n_test = N_TEST if n_test is None else n_test
     inputs, targets = voltage_task(graphs, pretrained.mask_token.detach())
     train_index = list(range(n_train))
     test_index = list(range(len(graphs) - n_test, len(graphs)))
@@ -542,6 +543,19 @@ def run_transfer(graphs, n_train: int, mode: str, steps: int = TRANSFER_STEPS,
 
 
 LABEL_BUDGETS = [5, 20, 100] if not fast_mode() else [5, 20]
+
+# The evaluation set is held out from the END of each grid's states, and the
+# training states are taken from the START, so the two must fit inside the
+# sample. Scaling the sample size without scaling this is how the reduced
+# configuration silently indexes off the front of the list.
+N_TEST = scaled(full=100, fast=12)
+for _grid, _graphs in heldout_graphs.items():
+    assert max(LABEL_BUDGETS) + N_TEST <= len(_graphs), (
+        f"{_grid}: {max(LABEL_BUDGETS)} training + {N_TEST} test states requested "
+        f"but only {len(_graphs)} sampled"
+    )
+print(f"{max(LABEL_BUDGETS)} training states at most, {N_TEST} test states, "
+      f"out of {len(next(iter(heldout_graphs.values())))} per held-out grid")
 MODES = {"specialist (from scratch)": "scratch",
          "pretrained, frozen": "frozen",
          "pretrained, fine-tuned": "finetune"}
@@ -549,7 +563,7 @@ MODES = {"specialist (from scratch)": "scratch",
 transfer_rows = []
 for grid_name, graphs in heldout_graphs.items():
     baseline = float(
-        torch.cat([g["node_features"][:, 2] for g in graphs[-100:]]).std() * node_std[2]
+        torch.cat([g["node_features"][:, 2] for g in graphs[-N_TEST:]]).std() * node_std[2]
     )
     transfer_rows.append({"grid": grid_name, "n_train": 0,
                           "method": "predict the mean", "vm MAE [pu]": baseline})
@@ -669,7 +683,7 @@ base_mva = float(base_net.sn_mva)
 # manufacture a mismatch that is our bookkeeping error rather than the model's.
 # Restrict the physical check to intact-topology states, and say how many that
 # leaves.
-TEST_SLICE = range(len(graphs) - 100, len(graphs))
+TEST_SLICE = range(len(graphs) - N_TEST, len(graphs))
 intact = [i for i in TEST_SLICE
           if not points[i].has_outage and graphs[i]["node_features"].shape[0] == ybus.shape[0]]
 print(f"{grid_name}: Ybus {ybus.shape}, base {base_mva} MVA")
@@ -760,8 +774,9 @@ print("be handed to an optimiser that assumes they hold.")
 
 # %%
 def run_with_physics(graphs, n_train: int, physics_weight: float,
-                     steps: int = TRANSFER_STEPS, seed: int = 0, n_test: int = 100):
+                     steps: int = TRANSFER_STEPS, seed: int = 0, n_test: int | None = None):
     """Fine-tune with an added penalty on the AC power-balance residual."""
+    n_test = N_TEST if n_test is None else n_test
     inputs, targets = voltage_task(graphs, pretrained.mask_token.detach())
     train_index = list(range(n_train))
     test_index = list(range(len(graphs) - n_test, len(graphs)))
