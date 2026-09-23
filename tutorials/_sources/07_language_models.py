@@ -161,7 +161,7 @@ if subword is not None:
 # | vocabulary | ~100 | 30 k–150 k |
 # | sequence length for the same text | long | ~4x shorter |
 # | embedding table | tiny | large |
-# | unknown symbols | impossible | impossible (falls back to bytes) |
+# | unknown symbols | **possible** — anything outside the corpus | impossible (falls back to bytes) |
 # | must learn spelling | yes | mostly no |
 #
 # Since attention costs $O(n^2)$, a 4x shorter sequence is a 16x cheaper
@@ -284,13 +284,54 @@ ax.set_title("Training a language model")
 ax.legend()
 plt.show()
 
-print(f"A uniform guess over {tokenizer.vocab_size} characters costs "
-      f"{math.log(tokenizer.vocab_size):.3f} nats (perplexity {tokenizer.vocab_size}).")
-print(f"Our model reaches {curve.validation.iloc[-1]:.3f} nats "
-      f"(perplexity {math.exp(curve.validation.iloc[-1]):.2f}).")
+# Compare against baselines that are actually hard to beat, not just against
+# uniform. This course spends tutorial 01 insisting that "the baseline
+# determines whether a result is a result" and that beating the mean is
+# trivial; a language model beating a uniform guess is the same empty claim.
+# The corpus is templated, so a character bigram is already strong -- which is
+# exactly why it is the honest reference here.
+from collections import Counter
+
+_train_text, _valid_text = text[:n_train], text[n_train:]
+_vocab = tokenizer.vocab_size
+
+_unigram = Counter(_train_text)
+_n = sum(_unigram.values())
+_uni_ce = -sum(
+    math.log(_unigram.get(c, 1) / _n) for c in _valid_text
+) / len(_valid_text)
+
+_bigram = Counter(zip(_train_text, _train_text[1:], strict=False))
+_context = Counter(_train_text)
+_bi_ce = -sum(
+    math.log((_bigram.get((a, b), 0) + 1) / (_context.get(a, 0) + _vocab))
+    for a, b in zip(_valid_text, _valid_text[1:], strict=False)
+) / (len(_valid_text) - 1)
+
+_model_ce = curve.validation.iloc[-1]
+print("Validation cross-entropy and perplexity, weakest reference first:\n")
+for _name, _ce in [
+    (f"uniform over {_vocab} characters", math.log(_vocab)),
+    ("unigram (character frequencies)", _uni_ce),
+    ("bigram (previous character)", _bi_ce),
+    ("TinyGPT", _model_ce),
+]:
+    print(f"  {_name:34s} {_ce:6.3f} nats   perplexity {math.exp(_ce):7.2f}")
+
 print("\nPerplexity is exp(cross-entropy): roughly 'how many characters is the model")
-print("effectively choosing between at each step'. Going from 76 to a handful means it")
-print("has learned the structure of the text.")
+print("effectively choosing between at each step'.")
+print()
+print(f"Beating uniform ({_vocab:.0f} -> {math.exp(_model_ce):.2f}) would be no achievement at all --")
+print("a unigram model does most of that by knowing that spaces and vowels are")
+print(f"common. The number that matters is the bigram: {math.exp(_bi_ce):.2f} -> "
+      f"{math.exp(_model_ce):.2f}, a")
+print(f"{1 - _model_ce / _bi_ce:.0%} reduction in cross-entropy over a reference that already")
+print("knows the local character statistics of this corpus.")
+print()
+print("Read the absolute number with care. These are TEMPLATED records, so the")
+print("text is close to deterministic once you know which record type you are in;")
+print("a perplexity near 1 says the model learned the templates, not that it")
+print("would do this on prose.")
 
 # %% [markdown]
 # ## 8. What it writes

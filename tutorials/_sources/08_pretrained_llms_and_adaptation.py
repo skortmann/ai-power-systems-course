@@ -186,10 +186,25 @@ for index, name in enumerate(EVENT_CLASSES):
     example = texts[int(np.where(labels == index)[0][0])]
     print(f"  [{name:18s}] {example}")
 
+# DEDUPLICATE BEFORE SPLITTING. The sentences are generated from templates, so
+# the same string occurs more than once: 880 rows carry only 718 distinct
+# sentences. Splitting the raw list put 56 of the 264 test sentences (21.2%)
+# into the training set character-for-character, which scores every adaptation
+# method below on one-in-five items it had memorised -- and flatters the
+# higher-capacity methods most, which is exactly the comparison this section
+# makes. The course states the rule elsewhere ("deduplicated before splitting,
+# because a passage appearing in both..."); this applies it.
+unique_texts, first_index = np.unique(texts, return_index=True)
+texts = list(unique_texts)
+labels = labels[first_index]
+print(f"\nafter deduplication: {len(texts)} distinct sentences")
+
 train_texts, test_texts, y_train, y_test = train_test_split(
     texts, labels, test_size=0.3, random_state=0, stratify=labels
 )
-print(f"\ntrain {len(train_texts)} | test {len(test_texts)}")
+overlap = len(set(train_texts) & set(test_texts))
+assert overlap == 0, f"{overlap} test sentences also appear in training"
+print(f"train {len(train_texts)} | test {len(test_texts)} | verbatim overlap {overlap}")
 
 # %% [markdown]
 # ## 6. Four ways to adapt the same backbone

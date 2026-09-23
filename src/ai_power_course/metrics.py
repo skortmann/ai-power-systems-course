@@ -157,10 +157,11 @@ def crps_from_quantiles(
 ) -> float:
     """Approximate CRPS as the mean pinball loss over a quantile grid.
 
-    The continuous ranked probability score integrates the Brier score over all
-    thresholds; averaging the pinball loss over an evenly spaced quantile grid
-    is the standard discrete approximation (and is what most forecasting
-    benchmarks report). Exact in the limit of a dense grid.
+    The continuous ranked probability score integrates the quantile loss over
+    all levels: ``CRPS = 2 * integral_0^1 QL_tau dtau``. This evaluates that
+    integral by quadrature over the supplied levels, so it converges as the
+    grid densifies. See the comment in the body for why a plain average does
+    not, and for the measured error of each.
 
     ``quantile_forecasts`` has shape ``(n_samples, n_quantiles)``.
     """
@@ -173,11 +174,30 @@ def crps_from_quantiles(
             f"expected quantile_forecasts of shape {(true.size, len(quantile_levels))}, "
             f"got {forecasts.shape}"
         )
-    losses = [
-        pinball_loss(true, forecasts[:, i], q) for i, q in enumerate(quantile_levels)
-    ]
-    # Factor 2 makes the grid-average agree with CRPS for a dense uniform grid.
-    return float(2.0 * np.mean(losses))
+    # CRPS = 2 * integral of the quantile loss over tau in (0, 1), so the
+    # discrete estimate needs QUADRATURE WEIGHTS, not a plain mean.
+    #
+    # `2 * mean(losses)` is only correct when the levels are a midpoint rule.
+    # On the common {i/(n+1)} grid it carries a systematic (n+1)/n factor, and
+    # on a sparse grid it is badly off: measured against the analytic Gaussian
+    # value sigma/sqrt(pi), a plain mean gives +4.9% on 19 levels, +1.1% on 99,
+    # and -11.3% on the 3-level grid the course uses in Tutorial 09. It also
+    # does not converge as the grid densifies, which a quadrature must.
+    #
+    # Weighting each level by the width of the interval it represents fixes
+    # that: the same cases become +1.5%, +0.2% and -6.0%. The residual error at
+    # 3 levels is irreducible -- three quantiles do not pin down a distribution
+    # -- which is why the course labels that number "approx." and does not
+    # compare it across models with different grids.
+    levels = np.asarray(list(quantile_levels), dtype=float)
+    order = np.argsort(levels)
+    levels, forecasts = levels[order], forecasts[:, order]
+    edges = np.concatenate(([0.0], (levels[:-1] + levels[1:]) / 2.0, [1.0]))
+    weights = np.diff(edges)
+    losses = np.array(
+        [pinball_loss(true, forecasts[:, i], q) for i, q in enumerate(levels)]
+    )
+    return float(2.0 * float(weights @ losses))
 
 
 def coverage(y_true: ArrayLike, lower: ArrayLike, upper: ArrayLike) -> float:

@@ -792,9 +792,21 @@ print(f"\n{pv_physics['below_min_rate']:.1%} of predictions are NEGATIVE generat
 constrained = np.clip(pv_prediction, 0.0, 45_000.0)
 constrained[night] = 0.0
 
-print(f"unconstrained  MAE {mae(yp_test, pv_prediction):8,.1f} MW")
-print(f"constrained    MAE {mae(yp_test, constrained):8,.1f} MW   "
-      f"({skill_score(yp_test, constrained, pv_prediction):.1%} better, and physically valid)")
+# `skill_score` defaults to metric=rmse. Printing its result beside two MAE
+# numbers reported an RMSE skill (1.5%) as though it were the MAE improvement
+# the reader can compute from the line above (15.3%) -- understating the effect
+# tenfold, in a section whose point is that the effect is large. Say which
+# metric each number is, and derive the headline from the numbers shown.
+mae_unconstrained = mae(yp_test, pv_prediction)
+mae_constrained = mae(yp_test, constrained)
+print(f"unconstrained  MAE {mae_unconstrained:8,.1f} MW")
+print(f"constrained    MAE {mae_constrained:8,.1f} MW   "
+      f"({skill_score(yp_test, constrained, pv_prediction, metric=mae):.1%} better on MAE, "
+      f"and physically valid)")
+print(f"               (on RMSE the same clip is worth "
+      f"{skill_score(yp_test, constrained, pv_prediction):.1%} -- clipping removes many "
+      f"small night-time errors,\n"
+      f"                which MAE counts equally and RMSE barely notices)")
 print("\nPhysical knowledge is free accuracy. This is the single cheapest improvement\n"
       "available in applied energy forecasting, and it is routinely skipped.")
 
@@ -914,12 +926,15 @@ print("\nThis table is the spine of the course. Tutorials 02, 03, 06 and 09 appe
 # - **The pipeline is `data -> human-engineered features -> one model -> one
 #   task`.** Everything that follows in this course attacks one of those arrows.
 # - **A chronological split is not a style preference.** A shuffled split
-#   flattered a Ridge model by a double-digit percentage here, with no error
-#   and no warning sign.
+#   flattered the *flexible* models here — the random forest by 13.6% and the
+#   1-nearest-neighbour by 29.8% — with no error and no warning sign. Ridge
+#   barely moved (0.9%), which is the lesson: the more a model can memorise,
+#   the more a leaky split rewards it.
 # - **The baseline determines whether a result is a result.** Seasonal naive is
 #   strong; the mean is not; report skill against the former.
-# - **Gradient boosting is a serious opponent.** It won this notebook, it will
-#   win some of the next ones, and "we used deep learning" is not an argument.
+# - **The tree ensembles are serious opponents.** The random forest won this
+#   notebook and gradient boosting was close behind; both will win some of the
+#   next ones, and "we used deep learning" is not an argument.
 # - **Statistical validity and physical validity are different questions.** The
 #   PV model had a respectable $R^2$ while predicting negative generation at
 #   night. Ask both questions, always.

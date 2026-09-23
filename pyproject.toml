@@ -85,6 +85,12 @@ select = ["E", "F", "I", "UP", "B"]
 #   B007  unused loop variables are common and readable in teaching code
 "tutorials/_sources/*.py" = ["F821", "E501", "E402", "B007"]
 
+# The audit script keeps its tunable constants in a labelled block at the top
+# of the file, ahead of the imports, so that changing what it measures means
+# editing one visible block rather than hunting through the body. That layout
+# necessarily places module-level imports below the first statement.
+"scripts/audit.py" = ["E402"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["ai_power_course"]
 

@@ -736,11 +736,20 @@ print(f"\nRidge on the raw 24 values, for scale: "
 # %% [markdown]
 # **This plot shows the foundation-model mechanism, and also its limits.**
 #
-# Read it left to right. The frozen pretrained encoder — which has *nine*
-# trainable parameters in its head — matches or beats the same architecture
-# trained from scratch across the whole range, because the scratch model must
-# learn what a day looks like *and* the task from a handful of examples, while
-# the pretrained one already knows the first part.
+# Read it left to right, and read the table rather than this sentence: the
+# ordering is not uniform, and the exceptions are the interesting part.
+#
+# The frozen pretrained encoder — which has *nine* trainable parameters in its
+# head — beats the same architecture trained from scratch at the smallest
+# budgets, because the scratch model must learn what a day looks like *and* the
+# task from a handful of examples, while the pretrained one already knows the
+# first part. That advantage narrows as labels accumulate, and at some budgets
+# scratch training is already ahead (at 20 labels the run above has scratch at
+# 0.0363 against the frozen probe's 0.0375).
+#
+# "Matches or beats across the whole range" would be the tidier claim. It is
+# not what this experiment produced, and a single crossing point is exactly the
+# kind of detail that a confident summary sentence erases.
 #
 # But be precise about the size of the effect: it is a few percent, and a plain
 # ridge regression on the 24 raw numbers is right there with both of them. On an
