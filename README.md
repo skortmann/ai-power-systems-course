@@ -111,6 +111,16 @@ comparable — there is a shared leaderboard that fills up as you go.
 | [09](tutorials/09_foundation_models_beyond_llms.ipynb) | **What a foundation model actually is**; zero-shot transfer | Chronos-2 zero-shot vs. trained specialists | chronos-forecasting | 3 min |
 | [10](tutorials/10_grid_foundation_models.ipynb) | Graph networks, multi-grid pretraining, physics-informed losses | **Mini-GridFM**: pretrain across grids, transfer to an unseen one | pandapower, PyTorch | 4 min |
 
+### Optional / Advanced
+
+Tutorial 11 is **not part of the onboarding course**. The ten above stand on
+their own; this one is for readers who have finished them and want the research
+frontier.
+
+| # | AI concept | Power-system application | Main library | ~Runtime |
+|---|---|---|---|---|
+| [11](tutorials/11_federated_learning_and_foundation_models.ipynb) | FedAvg, non-IID clients, client drift, FedProx, DP and secure aggregation, federated LoRA | **FedGridFM**: four DSOs pretrain a shared encoder without pooling their grids | Flower, PyTorch | 7 min |
+
 Runtimes are wall-clock on a four-thread laptop CPU, measured on the committed
 build. Tutorial 06 is the outlier because it trains four models; its section 10
 explains why the Transformer is the slow one here. Set `AI_POWER_COURSE_FAST=1`
@@ -173,7 +183,7 @@ The domain evolves alongside the method rather than being bolted on at the end:
 ## Repository layout
 
 ```
-├── tutorials/              the ten notebooks (committed with outputs)
+├── tutorials/              the ten notebooks + optional 11 (committed with outputs)
 │   ├── _sources/           their jupytext sources — edit these, not the .ipynb
 │   ├── exercise.ipynb      44 scaffolded tasks, one chapter per tutorial
 │   └── solution.ipynb      the same tasks, worked and explained
@@ -304,7 +314,7 @@ most instructive exercise in the notebook.
 - Dependencies pinned in `uv.lock`.
 - No model weights in the repository; pretrained models download from their
   hubs on first use.
-- CI executes **all ten notebooks from a clean install** in reduced mode, plus
+- CI executes **all eleven notebooks from a clean install** in reduced mode, plus
   the test suite.
 
 ```bash

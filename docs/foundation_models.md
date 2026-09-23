@@ -221,3 +221,47 @@ the representation has to be in units that mean the same thing everywhere
 passing, not bus indices), and constrained by something that is true in both
 grids (the power-flow equations). That is not a foundation-model insight. It is
 just good modelling — which is rather the point.
+
+---
+
+## A second axis: where the pretraining data lives
+
+*Tutorial 11 (optional/advanced).*
+
+Everything above assumes the pretraining corpus can be assembled. For grids
+that assumption is doing a lot of work. There is no public corpus of feeder
+models and measurements, and the reason is not technical — it is privacy law,
+commercial confidentiality, and critical-infrastructure rules. The data exists;
+it is held by operators who cannot hand it over.
+
+That makes *federated* pretraining more than an efficiency question for this
+domain specifically. For language, federation is one option among several,
+because a public corpus exists. For grids, it may be the only route to breadth
+of pretraining at all.
+
+Four lifecycle arrangements are worth distinguishing, because "federated
+foundation model" is used for all of them:
+
+| | Pretraining | Adaptation | When it applies |
+|---|---|---|---|
+| **A** | federated, on private data | central | no public corpus exists |
+| **B** | central, on public data | federated on private data | a good general model already exists |
+| **C** | central | local adapters, never aggregated | participants want no coupling |
+| **D** | federated | federated | strictest, most expensive |
+
+For power systems **B** is the pragmatic near-term option and **A** is the open
+research question.
+
+Two constraints shape everything in that column.
+
+**Arithmetic.** A billion parameters at float32 is 4 GB per message. A hundred
+clients over a hundred rounds is petabytes. Federating a foundation model the
+naive way is not expensive, it is impossible — which makes parameter-efficient
+adaptation a precondition rather than an optimisation.
+
+**Language.** Federation keeps raw training samples local. It does not make
+them private: updates leave every round and are a deterministic function of the
+data. Secure aggregation and differential privacy address different parts of
+what remains, and neither is implied by the word "federated". Tutorial 11 keeps
+that distinction explicit throughout, and says plainly where it implements the
+arithmetic of a mechanism without implementing the guarantee.

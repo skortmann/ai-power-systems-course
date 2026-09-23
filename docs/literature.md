@@ -397,3 +397,102 @@ specialist baseline was tuned.
   Learning in NLP", [arXiv:1906.02243](https://arxiv.org/abs/1906.02243) (2019).
 - Sculley et al., "Hidden Technical Debt in Machine Learning Systems",
   NeurIPS 2015.
+
+## 9. Federated learning and federated foundation models
+
+*Tutorial 11 (optional/advanced).* Two literatures meet here: federated
+optimization, which is mature, and federated foundation models, which is not.
+
+### Foundations
+
+- McMahan, Moore, Ramage, Hampson & Agüera y Arcas, "Communication-Efficient
+  Learning of Deep Networks from Decentralized Data", *AISTATS* 2017,
+  [arXiv:1602.05629](https://arxiv.org/abs/1602.05629). FedAvg. — *T11*
+- Li, Sahu, Zaheer, Sanjabi, Talwalkar & Smith, "Federated Optimization in
+  Heterogeneous Networks", *MLSys* 2020,
+  [arXiv:1812.06127](https://arxiv.org/abs/1812.06127). FedProx. — *T11*
+- Karimireddy, Kale, Mohri, Reddi, Stich & Suresh, "SCAFFOLD: Stochastic
+  Controlled Averaging for Federated Learning", *ICML* 2020,
+  [arXiv:1910.06378](https://arxiv.org/abs/1910.06378). Control variates
+  against client drift. — *T11*
+- Kairouz et al., "Advances and Open Problems in Federated Learning",
+  *Foundations and Trends in Machine Learning* 14(1–2), 2021,
+  [arXiv:1912.04977](https://arxiv.org/abs/1912.04977). The reference survey;
+  still the best single entry point. — *T11*
+- Reddi et al., "Adaptive Federated Optimization", *ICLR* 2021,
+  [arXiv:2003.00295](https://arxiv.org/abs/2003.00295). FedAdam, FedYogi.
+
+### Privacy, security and what they do not cover
+
+- Zhu, Liu & Han, "Deep Leakage from Gradients", *NeurIPS* 2019,
+  [arXiv:1906.08935](https://arxiv.org/abs/1906.08935). The result that ended
+  "gradients are not data". — *T11*
+- Geiping, Bauermeister, Dröge & Moeller, "Inverting Gradients — How easy is it
+  to break privacy in federated learning?", *NeurIPS* 2020,
+  [arXiv:2003.14053](https://arxiv.org/abs/2003.14053). — *T11*
+- Bonawitz et al., "Practical Secure Aggregation for Privacy-Preserving Machine
+  Learning", *CCS* 2017. The server learns only the sum. — *T11*
+- Abadi, Chu, Goodfellow, McMahan, Mironov, Talwar & Zhang, "Deep Learning with
+  Differential Privacy", *CCS* 2016,
+  [arXiv:1607.00133](https://arxiv.org/abs/1607.00133). DP-SGD and the moments
+  accountant — **the accounting Tutorial 11 deliberately does not implement**,
+  which is why it quotes no epsilon. — *T11*
+- Dwork & Roth, *The Algorithmic Foundations of Differential Privacy*,
+  *Foundations and Trends in TCS* 9(3–4), 2014. The definitions.
+
+### Federated foundation models
+
+- Ren, Yu, Peng, Tang, Zhao, Yi, Tan, Gao, Li, Li, Li & Yang, "Advances and Open
+  Challenges in Federated Foundation Models", 2024,
+  [arXiv:2404.15381](https://arxiv.org/abs/2404.15381). The multi-tiered
+  taxonomy this tutorial's lifecycle section follows. — *T11*
+- Woisetschläger, Erben, Wang, Mayer & Jacobsen, "A Survey on Efficient
+  Federated Learning Methods for Foundation Model Training", *IJCAI* 2024,
+  [arXiv:2401.04472](https://arxiv.org/abs/2401.04472). Organised around
+  computational and communication efficiency, which is the binding constraint.
+  — *T11*
+- Hatfaludi & Serban, "Foundational models and federated learning: survey,
+  taxonomy, challenges and practical insights", 2025,
+  [arXiv:2509.05142](https://arxiv.org/abs/2509.05142). Lifecycle-stage
+  taxonomy; healthcare focus but the structure transfers. — *T11*
+- Zhuang, Chen & Lyu, "When Foundation Model Meets Federated Learning:
+  Motivations, Challenges, and Future Directions", 2023,
+  [arXiv:2306.15546](https://arxiv.org/abs/2306.15546).
+- Yang et al., "Ten Challenging Problems in Federated Foundation Models", 2025,
+  [arXiv:2502.12176](https://arxiv.org/abs/2502.12176). A useful open-problems
+  list for anyone looking for a thesis topic.
+
+### Federated parameter-efficient fine-tuning
+
+- Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models", *ICLR* 2022,
+  [arXiv:2106.09685](https://arxiv.org/abs/2106.09685). — *T08, T11*
+- Sun, Li, Wang, Wang & Chen, "Improving LoRA in Privacy-Preserving Federated
+  Learning", *ICLR* 2024,
+  [arXiv:2403.12313](https://arxiv.org/abs/2403.12313). FFA-LoRA: freeze `A`,
+  train `B`, halve the payload. Also the clearest statement of why averaging
+  `A` and `B` separately is not averaging `BA`. — *T11*
+- Bai, Chen, Li, Zhang & Wang, "Federated Fine-tuning of Large Language Models
+  under Heterogeneous Tasks and Client Resources", *NeurIPS* 2024,
+  [arXiv:2402.11505](https://arxiv.org/abs/2402.11505). FlexLoRA: SVD-based
+  redistribution across clients with different ranks. — *T11*
+
+### Federated learning in power systems
+
+- Wen, Zhou, Zhang, Wang & Zhang, "Federated Learning for Smart Grid: A Survey
+  on Applications and Potential Vulnerabilities", 2024,
+  [arXiv:2409.10764](https://arxiv.org/abs/2409.10764). Applications and, more
+  usefully, the attack surface. — *T11*
+- Savi & Olivadese, "Short-Term Energy Consumption Forecasting at the Edge: A
+  Federated Learning Approach", *IEEE Access* 9, 2021. An early and frequently
+  cited energy-domain application.
+
+### Software
+
+- Beutel et al., "Flower: A Friendly Federated Learning Research Framework",
+  2020, [arXiv:2007.14390](https://arxiv.org/abs/2007.14390) ·
+  [flower.ai](https://flower.ai). The framework Tutorial 11 uses, *after* the
+  loop has been built by hand. — *T11*
+- Opacus — DP-SGD for PyTorch with a working privacy accountant. Use this
+  rather than the clipping-and-noise sketch in Tutorial 11 §13 if a guarantee
+  is required.
+

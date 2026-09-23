@@ -36,6 +36,40 @@ task?"*
 
 ## Design decisions, and why
 
+### The optional eleventh tutorial
+
+Tutorials 01–10 are the onboarding course and are self-contained. Tutorial 11
+(*Federated Learning and Federated Foundation Models*) is marked
+**optional / advanced** and sits outside that arc deliberately: it introduces a
+second, independent axis.
+
+```text
+                     CENTRALIZED DATA        FEDERATED DATA
+                            │                      │
+Task-specific model         │  Tutorials 01-03     │  FedAvg, FedProx      (11)
+                            │                      │
+Foundation model            │  Tutorials 08-10     │  Federated foundation (11)
+                            │                      │  model
+```
+
+The vertical axis is *model generality* — the whole of 01→10. The horizontal
+axis is *where the data lives*, and nothing in 01–10 touches it. Keeping them
+separate is the point: a reader who conflates "foundation model" with
+"decentralised training" has misunderstood both.
+
+The full progression, with the second axis appended:
+
+```text
+Task-Specific ML → Neural Networks → Representation Learning → Attention
+    → Transformers → Foundation Models → Domain Foundation Models
+    → Grid Foundation Models → Federated Grid Foundation Models   (optional)
+```
+
+```text
+CENTRALIZED DATA → DISTRIBUTED DATA → FEDERATED TRAINING
+    → PRIVACY-ENHANCED FEDERATED TRAINING                          (optional)
+```
+
 ### One dataset, ten notebooks
 
 Tutorials 01–09 forecast the same series — day-ahead system load, same split,

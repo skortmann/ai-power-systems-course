@@ -118,3 +118,34 @@ pretraining and adaptability, not parameter count.
 Transformer exists" (2017) and "there is a serious foundation-model agenda for
 power grids" (2024) is seven years. The gap between GridFM's agenda paper and
 working open implementations is under two. Tutorial 10 sits exactly here.
+
+---
+
+## A second timeline: where the data lives
+
+*Tutorial 11 (optional/advanced).* Model generality and data decentralization
+are independent axes, and they have separate histories.
+
+| Year | Milestone |
+|---|---|
+| **2016** | **FedAvg** — McMahan et al., *Communication-Efficient Learning of Deep Networks from Decentralized Data*. The algorithm that named the field. |
+| **2016** | **DP-SGD** — Abadi et al. Clipping, calibrated noise and the moments accountant, still the template. |
+| **2017** | **Secure aggregation** — Bonawitz et al. The server learns the sum and nothing else. |
+| **2019** | **Deep Leakage from Gradients** — Zhu et al. reconstruct training samples from a shared gradient, ending "gradients are not data". |
+| **2020** | **FedProx** and **SCAFFOLD** — two answers to client drift: penalise it, or correct it. |
+| **2021** | **Kairouz et al.** — the field's reference survey; federated learning becomes a research area rather than an algorithm. |
+| **2022** | **LoRA** (ICLR) — not federated, but the precondition for federating anything large. |
+| **2023–24** | **Federated foundation models** — the two literatures meet. Surveys by Zhuang et al. (2023), Woisetschläger et al. (IJCAI 2024) and Ren et al. (2024) map a field that is roughly two years old. |
+| **2024–25** | **Federated PEFT** — FFA-LoRA, FlexLoRA and successors confront the fact that averaging $A$ and $B$ separately is not averaging $BA$. |
+| **2024–** | **Energy applications** — federated load forecasting and smart-grid surveys appear; no mature multi-operator deployment is public. |
+
+Two observations worth carrying into Tutorial 11.
+
+**Federated learning is older than the foundation-model era.** FedAvg predates
+the Transformer by a year. The hard part was never the averaging; it was
+heterogeneity, and then it was scale.
+
+**The privacy attacks arrived after the architecture.** FedAvg is from 2016 and
+*Deep Leakage from Gradients* from 2019 — three years in which "the data stays
+local" was widely read as "the data is private". That gap is why this course
+states the distinction every time it comes up rather than once.
