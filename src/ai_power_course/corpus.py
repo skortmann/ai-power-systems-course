@@ -289,8 +289,25 @@ def generate_corpus(
     supply the rigid structure that makes a tiny model's progress visible.
     """
     rng = np.random.default_rng(seed)
+    # The handbook appears three times, and all three copies sit near the FRONT.
+    #
+    # They used to be appended at the end (`parts += ["", HANDBOOK, "",
+    # HANDBOOK]`), which put both repeats inside the final 10% of the file --
+    # exactly the slice Tutorial 07 holds out for validation. The result was a
+    # validation set that was mostly a verbatim copy of training text: 66% of
+    # sampled 65-character validation windows occurred character-for-character
+    # in the training split, so the reported validation perplexity measured
+    # recall of text the model had already seen, not generalisation.
+    #
+    # The repetition itself is wanted -- a character model needs to see
+    # technical vocabulary more than once -- so the copies stay. They just
+    # belong where the training data is.
     parts: list[str] = [
         "POWER SYSTEMS HANDBOOK",
+        "",
+        HANDBOOK,
+        "",
+        HANDBOOK,
         "",
         HANDBOOK,
         "",
@@ -305,7 +322,6 @@ def generate_corpus(
     parts += [_disturbance_report(rng) + "\n" for _ in range(n_reports)]
     parts.append("")
     parts += [_asset_record(rng) for _ in range(n_assets)]
-    parts += ["", HANDBOOK, "", HANDBOOK]
     return "\n".join(parts)
 
 

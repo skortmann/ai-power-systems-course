@@ -143,6 +143,292 @@ series resistance and reactance, the shunt susceptance and the transformer tap
 ratio. Expressing all of these in per unit is what makes the features
 comparable across networks of different voltage levels.
 
+PER-UNIT SYSTEM
+The per-unit system expresses electrical quantities as fractions of a chosen
+base. A base apparent power S_base and a base voltage V_base are selected for
+each voltage level; base current and base impedance follow as I_base = S_base
+/ (sqrt(3) V_base) and Z_base = V_base^2 / S_base. Dividing every quantity by
+its base removes the voltage level from the numbers, so a 380 kV line and a 20
+kV feeder have comparable impedances of a few hundredths per unit. Transformer
+ratios largely disappear, which is the main practical reason the convention is
+universal in power flow software. A bus voltage of 1.02 per unit means two
+percent above nominal regardless of whether nominal is 400 volts or 400
+kilovolts.
+
+POWER FLOW
+The AC power flow problem solves for the complex voltage at every bus given
+the injections and the network admittance matrix. The governing equation is S
+= V .* conj(Y V), where S is the vector of complex nodal injections, V the
+vector of complex bus voltages and Y the bus admittance matrix. Because the
+equations are non-linear in the voltage magnitudes and angles, they are solved
+iteratively, most commonly by the Newton-Raphson method. Each bus is
+classified as PQ, where active and reactive injections are known, PV, where
+active power and voltage magnitude are known, or slack, where voltage
+magnitude and angle are fixed and the injection is whatever balances the
+system. Convergence is not guaranteed: heavily loaded systems near the nose of
+the PV curve, or systems that have been split by an outage, may have no
+solution at all.
+
+VOLTAGE LIMITS
+Operational voltage limits protect equipment and customer appliances.
+Transmission planning commonly uses a band of 0.95 to 1.05 per unit, while EN
+50160 permits plus or minus ten percent at the point of common coupling in low
+voltage networks for 95 percent of weekly ten-minute averages. Undervoltage is
+typically caused by heavy load far from a source; overvoltage in distribution
+networks is increasingly caused by distributed generation exporting power
+along a feeder with appreciable resistance. Because the R/X ratio of low
+voltage cables is high, active power export raises voltage much more strongly
+there than in a transmission network, which is why photovoltaic hosting
+capacity is frequently limited by voltage rather than by thermal rating.
+
+THERMAL RATING
+A line or transformer is thermally limited by the temperature its conductors
+and insulation can tolerate. The static rating is a current derived from a
+conservative assumption about ambient temperature, wind speed and solar
+radiation. Because the actual cooling conditions are usually better than
+assumed, dynamic line rating can release substantial additional capacity,
+particularly on windy days, which is also when wind generation is highest.
+Loading is normally reported as a percentage of the rating, and a value above
+one hundred percent is an overload. Short overloads are not immediately
+damaging; the constraint is thermal energy over time, so ratings are often
+specified for several durations.
+
+N-1 CRITERION
+The N-1 criterion requires that the system remain within all operational
+limits after the loss of any single component. It is a deterministic
+reliability standard and the backbone of European transmission planning and
+operation. Compliance is assessed by contingency analysis: a power flow is
+solved for the base case and then for every credible single outage, and the
+resulting voltages and branch loadings are checked against their limits. For a
+network with several thousand branches this means several thousand power
+flows, which is why fast approximations and machine learning surrogates for
+contingency screening are an active research area.
+
+STATE ESTIMATION
+State estimation reconstructs the most likely system state from redundant and
+noisy measurements. The classical formulation is weighted least squares:
+minimise the weighted sum of squared differences between measured quantities
+and the values implied by an estimated state, subject to the network model.
+Redundancy is essential, both to reduce the effect of measurement noise and to
+allow bad data detection. A system is observable if the available measurements
+are sufficient to determine the state uniquely; unobservable islands must be
+handled by pseudo measurements, typically load forecasts. Phasor measurement
+units provide direct, time-synchronised measurements of voltage angle, which
+changes the structure of the problem considerably.
+
+LOAD FORECASTING
+Short-term load forecasting predicts demand from minutes to a few days ahead
+and underpins unit commitment, market bidding and congestion management.
+Demand is driven by the time of day, the day of the week, holidays, and
+weather, principally temperature. The relationship with temperature is
+V-shaped: heating demand rises below a comfort threshold of roughly fifteen
+degrees Celsius and cooling demand rises above roughly twenty-two degrees, so
+a single linear coefficient averages two opposing effects into nothing. Strong
+baselines are persistence and seasonal naive forecasts; a model that does not
+clearly beat the value from the same hour of the previous week has not
+demonstrated anything.
+
+RENEWABLE FORECASTING
+Photovoltaic generation is bounded below by zero and is exactly zero whenever
+the sun is below the horizon, so any forecast that predicts non-zero output at
+night is physically wrong regardless of its error metric. Clipping predictions
+at zero and forcing night hours to zero is free accuracy and removes an entire
+class of impossible states. Wind power follows a turbine power curve: output
+is zero below the cut-in speed of about three metres per second, rises
+approximately with the cube of wind speed, saturates at rated speed around
+twelve metres per second, and is curtailed above the cut-out speed near
+twenty-five metres per second. Aggregating many sites smooths the cut-out
+discontinuity because the wind speed differs across a country.
+
+RESIDUAL LOAD
+Residual load is demand minus non-dispatchable generation, usually wind and
+photovoltaic. It is the quantity the conventional fleet and the market must
+actually serve, and it is more volatile than demand alone because it inherits
+weather variability. As installed renewable capacity grows, residual load
+develops a pronounced midday depression on sunny days, the shape often called
+the duck curve, and can become negative in periods of low demand and high
+wind. Negative residual load is the principal driver of negative day-ahead
+prices, which occur when inflexible generation and must-run units would rather
+pay to keep producing than shut down and restart.
+
+DAY-AHEAD MARKET
+The day-ahead market clears hourly or quarter-hourly products for the
+following delivery day, typically by a uniform-price auction at midday. The
+clearing price is set by the marginal unit, so the price curve resembles the
+merit order of the fleet: cheap when residual load is low and steep when
+expensive peaking plant is required. Prices can be negative when renewable
+generation exceeds demand and curtailment is more expensive than paying
+consumers to absorb energy. Forecast errors in load or renewable generation
+are settled in the intraday and balancing markets, which is why forecast
+accuracy has a direct and measurable economic value.
+
+FREQUENCY CONTROL
+System frequency is the instantaneous indicator of the balance between
+generation and demand. A surplus of generation raises frequency and a deficit
+lowers it, with the rate of change determined by the inertia of the rotating
+masses connected to the system. Frequency containment reserve responds
+automatically within seconds to arrest a deviation, frequency restoration
+reserve returns frequency to nominal over minutes, and replacement reserve
+restores the faster products. Converter-connected generation provides no
+inherent inertia, so as its share grows the rate of change of frequency after
+a disturbance increases, and synthetic inertia or faster reserve products
+become necessary.
+
+GRAPH REPRESENTATION
+A power network is naturally a graph: buses are nodes and branches are edges.
+Representing it this way matters for machine learning because a fixed-width
+model trained on a thirty-bus network cannot even be evaluated on a hundred-
+and-eighteen-bus one, while a message-passing model shares its parameters
+across every node and edge and therefore applies unchanged to a network it has
+never seen. Node features typically include the active and reactive injection,
+the voltage magnitude and angle, and the bus type; edge features carry the
+series resistance and reactance, the shunt susceptance and the transformer tap
+ratio. Expressing all of these in per unit is what makes the features
+comparable across networks of different voltage levels.
+
+PER-UNIT SYSTEM
+The per-unit system expresses electrical quantities as fractions of a chosen
+base. A base apparent power S_base and a base voltage V_base are selected for
+each voltage level; base current and base impedance follow as I_base = S_base
+/ (sqrt(3) V_base) and Z_base = V_base^2 / S_base. Dividing every quantity by
+its base removes the voltage level from the numbers, so a 380 kV line and a 20
+kV feeder have comparable impedances of a few hundredths per unit. Transformer
+ratios largely disappear, which is the main practical reason the convention is
+universal in power flow software. A bus voltage of 1.02 per unit means two
+percent above nominal regardless of whether nominal is 400 volts or 400
+kilovolts.
+
+POWER FLOW
+The AC power flow problem solves for the complex voltage at every bus given
+the injections and the network admittance matrix. The governing equation is S
+= V .* conj(Y V), where S is the vector of complex nodal injections, V the
+vector of complex bus voltages and Y the bus admittance matrix. Because the
+equations are non-linear in the voltage magnitudes and angles, they are solved
+iteratively, most commonly by the Newton-Raphson method. Each bus is
+classified as PQ, where active and reactive injections are known, PV, where
+active power and voltage magnitude are known, or slack, where voltage
+magnitude and angle are fixed and the injection is whatever balances the
+system. Convergence is not guaranteed: heavily loaded systems near the nose of
+the PV curve, or systems that have been split by an outage, may have no
+solution at all.
+
+VOLTAGE LIMITS
+Operational voltage limits protect equipment and customer appliances.
+Transmission planning commonly uses a band of 0.95 to 1.05 per unit, while EN
+50160 permits plus or minus ten percent at the point of common coupling in low
+voltage networks for 95 percent of weekly ten-minute averages. Undervoltage is
+typically caused by heavy load far from a source; overvoltage in distribution
+networks is increasingly caused by distributed generation exporting power
+along a feeder with appreciable resistance. Because the R/X ratio of low
+voltage cables is high, active power export raises voltage much more strongly
+there than in a transmission network, which is why photovoltaic hosting
+capacity is frequently limited by voltage rather than by thermal rating.
+
+THERMAL RATING
+A line or transformer is thermally limited by the temperature its conductors
+and insulation can tolerate. The static rating is a current derived from a
+conservative assumption about ambient temperature, wind speed and solar
+radiation. Because the actual cooling conditions are usually better than
+assumed, dynamic line rating can release substantial additional capacity,
+particularly on windy days, which is also when wind generation is highest.
+Loading is normally reported as a percentage of the rating, and a value above
+one hundred percent is an overload. Short overloads are not immediately
+damaging; the constraint is thermal energy over time, so ratings are often
+specified for several durations.
+
+N-1 CRITERION
+The N-1 criterion requires that the system remain within all operational
+limits after the loss of any single component. It is a deterministic
+reliability standard and the backbone of European transmission planning and
+operation. Compliance is assessed by contingency analysis: a power flow is
+solved for the base case and then for every credible single outage, and the
+resulting voltages and branch loadings are checked against their limits. For a
+network with several thousand branches this means several thousand power
+flows, which is why fast approximations and machine learning surrogates for
+contingency screening are an active research area.
+
+STATE ESTIMATION
+State estimation reconstructs the most likely system state from redundant and
+noisy measurements. The classical formulation is weighted least squares:
+minimise the weighted sum of squared differences between measured quantities
+and the values implied by an estimated state, subject to the network model.
+Redundancy is essential, both to reduce the effect of measurement noise and to
+allow bad data detection. A system is observable if the available measurements
+are sufficient to determine the state uniquely; unobservable islands must be
+handled by pseudo measurements, typically load forecasts. Phasor measurement
+units provide direct, time-synchronised measurements of voltage angle, which
+changes the structure of the problem considerably.
+
+LOAD FORECASTING
+Short-term load forecasting predicts demand from minutes to a few days ahead
+and underpins unit commitment, market bidding and congestion management.
+Demand is driven by the time of day, the day of the week, holidays, and
+weather, principally temperature. The relationship with temperature is
+V-shaped: heating demand rises below a comfort threshold of roughly fifteen
+degrees Celsius and cooling demand rises above roughly twenty-two degrees, so
+a single linear coefficient averages two opposing effects into nothing. Strong
+baselines are persistence and seasonal naive forecasts; a model that does not
+clearly beat the value from the same hour of the previous week has not
+demonstrated anything.
+
+RENEWABLE FORECASTING
+Photovoltaic generation is bounded below by zero and is exactly zero whenever
+the sun is below the horizon, so any forecast that predicts non-zero output at
+night is physically wrong regardless of its error metric. Clipping predictions
+at zero and forcing night hours to zero is free accuracy and removes an entire
+class of impossible states. Wind power follows a turbine power curve: output
+is zero below the cut-in speed of about three metres per second, rises
+approximately with the cube of wind speed, saturates at rated speed around
+twelve metres per second, and is curtailed above the cut-out speed near
+twenty-five metres per second. Aggregating many sites smooths the cut-out
+discontinuity because the wind speed differs across a country.
+
+RESIDUAL LOAD
+Residual load is demand minus non-dispatchable generation, usually wind and
+photovoltaic. It is the quantity the conventional fleet and the market must
+actually serve, and it is more volatile than demand alone because it inherits
+weather variability. As installed renewable capacity grows, residual load
+develops a pronounced midday depression on sunny days, the shape often called
+the duck curve, and can become negative in periods of low demand and high
+wind. Negative residual load is the principal driver of negative day-ahead
+prices, which occur when inflexible generation and must-run units would rather
+pay to keep producing than shut down and restart.
+
+DAY-AHEAD MARKET
+The day-ahead market clears hourly or quarter-hourly products for the
+following delivery day, typically by a uniform-price auction at midday. The
+clearing price is set by the marginal unit, so the price curve resembles the
+merit order of the fleet: cheap when residual load is low and steep when
+expensive peaking plant is required. Prices can be negative when renewable
+generation exceeds demand and curtailment is more expensive than paying
+consumers to absorb energy. Forecast errors in load or renewable generation
+are settled in the intraday and balancing markets, which is why forecast
+accuracy has a direct and measurable economic value.
+
+FREQUENCY CONTROL
+System frequency is the instantaneous indicator of the balance between
+generation and demand. A surplus of generation raises frequency and a deficit
+lowers it, with the rate of change determined by the inertia of the rotating
+masses connected to the system. Frequency containment reserve responds
+automatically within seconds to arrest a deviation, frequency restoration
+reserve returns frequency to nominal over minutes, and replacement reserve
+restores the faster products. Converter-connected generation provides no
+inherent inertia, so as its share grows the rate of change of frequency after
+a disturbance increases, and synthetic inertia or faster reserve products
+become necessary.
+
+GRAPH REPRESENTATION
+A power network is naturally a graph: buses are nodes and branches are edges.
+Representing it this way matters for machine learning because a fixed-width
+model trained on a thirty-bus network cannot even be evaluated on a hundred-
+and-eighteen-bus one, while a message-passing model shares its parameters
+across every node and edge and therefore applies unchanged to a network it has
+never seen. Node features typically include the active and reactive injection,
+the voltage magnitude and angle, and the bus type; edge features carry the
+series resistance and reactance, the shunt susceptance and the transformer tap
+ratio. Expressing all of these in per unit is what makes the features
+comparable across networks of different voltage levels.
+
 SYNTHETIC OPERATIONAL RECORDS
 The entries below are generated, not measured. They exist so that a small
 language model has structured text to learn from. No real substation, asset
@@ -4070,289 +4356,3 @@ ASSET Altbach-110-overhead_line | commissioned 2000 | rated 244.2 MVA | conditio
 ASSET Hochmoor-30-power_transformer | commissioned 1974 | rated 61.3 MVA | condition index 0.79 | next inspection 2028.
 ASSET Ostkamp-220-overhead_line | commissioned 2015 | rated 551.7 MVA | condition index 0.47 | next inspection 2031.
 ASSET Altbach-380-busbar | commissioned 2002 | rated 1048.3 MVA | condition index 0.75 | next inspection 2028.
-
-PER-UNIT SYSTEM
-The per-unit system expresses electrical quantities as fractions of a chosen
-base. A base apparent power S_base and a base voltage V_base are selected for
-each voltage level; base current and base impedance follow as I_base = S_base
-/ (sqrt(3) V_base) and Z_base = V_base^2 / S_base. Dividing every quantity by
-its base removes the voltage level from the numbers, so a 380 kV line and a 20
-kV feeder have comparable impedances of a few hundredths per unit. Transformer
-ratios largely disappear, which is the main practical reason the convention is
-universal in power flow software. A bus voltage of 1.02 per unit means two
-percent above nominal regardless of whether nominal is 400 volts or 400
-kilovolts.
-
-POWER FLOW
-The AC power flow problem solves for the complex voltage at every bus given
-the injections and the network admittance matrix. The governing equation is S
-= V .* conj(Y V), where S is the vector of complex nodal injections, V the
-vector of complex bus voltages and Y the bus admittance matrix. Because the
-equations are non-linear in the voltage magnitudes and angles, they are solved
-iteratively, most commonly by the Newton-Raphson method. Each bus is
-classified as PQ, where active and reactive injections are known, PV, where
-active power and voltage magnitude are known, or slack, where voltage
-magnitude and angle are fixed and the injection is whatever balances the
-system. Convergence is not guaranteed: heavily loaded systems near the nose of
-the PV curve, or systems that have been split by an outage, may have no
-solution at all.
-
-VOLTAGE LIMITS
-Operational voltage limits protect equipment and customer appliances.
-Transmission planning commonly uses a band of 0.95 to 1.05 per unit, while EN
-50160 permits plus or minus ten percent at the point of common coupling in low
-voltage networks for 95 percent of weekly ten-minute averages. Undervoltage is
-typically caused by heavy load far from a source; overvoltage in distribution
-networks is increasingly caused by distributed generation exporting power
-along a feeder with appreciable resistance. Because the R/X ratio of low
-voltage cables is high, active power export raises voltage much more strongly
-there than in a transmission network, which is why photovoltaic hosting
-capacity is frequently limited by voltage rather than by thermal rating.
-
-THERMAL RATING
-A line or transformer is thermally limited by the temperature its conductors
-and insulation can tolerate. The static rating is a current derived from a
-conservative assumption about ambient temperature, wind speed and solar
-radiation. Because the actual cooling conditions are usually better than
-assumed, dynamic line rating can release substantial additional capacity,
-particularly on windy days, which is also when wind generation is highest.
-Loading is normally reported as a percentage of the rating, and a value above
-one hundred percent is an overload. Short overloads are not immediately
-damaging; the constraint is thermal energy over time, so ratings are often
-specified for several durations.
-
-N-1 CRITERION
-The N-1 criterion requires that the system remain within all operational
-limits after the loss of any single component. It is a deterministic
-reliability standard and the backbone of European transmission planning and
-operation. Compliance is assessed by contingency analysis: a power flow is
-solved for the base case and then for every credible single outage, and the
-resulting voltages and branch loadings are checked against their limits. For a
-network with several thousand branches this means several thousand power
-flows, which is why fast approximations and machine learning surrogates for
-contingency screening are an active research area.
-
-STATE ESTIMATION
-State estimation reconstructs the most likely system state from redundant and
-noisy measurements. The classical formulation is weighted least squares:
-minimise the weighted sum of squared differences between measured quantities
-and the values implied by an estimated state, subject to the network model.
-Redundancy is essential, both to reduce the effect of measurement noise and to
-allow bad data detection. A system is observable if the available measurements
-are sufficient to determine the state uniquely; unobservable islands must be
-handled by pseudo measurements, typically load forecasts. Phasor measurement
-units provide direct, time-synchronised measurements of voltage angle, which
-changes the structure of the problem considerably.
-
-LOAD FORECASTING
-Short-term load forecasting predicts demand from minutes to a few days ahead
-and underpins unit commitment, market bidding and congestion management.
-Demand is driven by the time of day, the day of the week, holidays, and
-weather, principally temperature. The relationship with temperature is
-V-shaped: heating demand rises below a comfort threshold of roughly fifteen
-degrees Celsius and cooling demand rises above roughly twenty-two degrees, so
-a single linear coefficient averages two opposing effects into nothing. Strong
-baselines are persistence and seasonal naive forecasts; a model that does not
-clearly beat the value from the same hour of the previous week has not
-demonstrated anything.
-
-RENEWABLE FORECASTING
-Photovoltaic generation is bounded below by zero and is exactly zero whenever
-the sun is below the horizon, so any forecast that predicts non-zero output at
-night is physically wrong regardless of its error metric. Clipping predictions
-at zero and forcing night hours to zero is free accuracy and removes an entire
-class of impossible states. Wind power follows a turbine power curve: output
-is zero below the cut-in speed of about three metres per second, rises
-approximately with the cube of wind speed, saturates at rated speed around
-twelve metres per second, and is curtailed above the cut-out speed near
-twenty-five metres per second. Aggregating many sites smooths the cut-out
-discontinuity because the wind speed differs across a country.
-
-RESIDUAL LOAD
-Residual load is demand minus non-dispatchable generation, usually wind and
-photovoltaic. It is the quantity the conventional fleet and the market must
-actually serve, and it is more volatile than demand alone because it inherits
-weather variability. As installed renewable capacity grows, residual load
-develops a pronounced midday depression on sunny days, the shape often called
-the duck curve, and can become negative in periods of low demand and high
-wind. Negative residual load is the principal driver of negative day-ahead
-prices, which occur when inflexible generation and must-run units would rather
-pay to keep producing than shut down and restart.
-
-DAY-AHEAD MARKET
-The day-ahead market clears hourly or quarter-hourly products for the
-following delivery day, typically by a uniform-price auction at midday. The
-clearing price is set by the marginal unit, so the price curve resembles the
-merit order of the fleet: cheap when residual load is low and steep when
-expensive peaking plant is required. Prices can be negative when renewable
-generation exceeds demand and curtailment is more expensive than paying
-consumers to absorb energy. Forecast errors in load or renewable generation
-are settled in the intraday and balancing markets, which is why forecast
-accuracy has a direct and measurable economic value.
-
-FREQUENCY CONTROL
-System frequency is the instantaneous indicator of the balance between
-generation and demand. A surplus of generation raises frequency and a deficit
-lowers it, with the rate of change determined by the inertia of the rotating
-masses connected to the system. Frequency containment reserve responds
-automatically within seconds to arrest a deviation, frequency restoration
-reserve returns frequency to nominal over minutes, and replacement reserve
-restores the faster products. Converter-connected generation provides no
-inherent inertia, so as its share grows the rate of change of frequency after
-a disturbance increases, and synthetic inertia or faster reserve products
-become necessary.
-
-GRAPH REPRESENTATION
-A power network is naturally a graph: buses are nodes and branches are edges.
-Representing it this way matters for machine learning because a fixed-width
-model trained on a thirty-bus network cannot even be evaluated on a hundred-
-and-eighteen-bus one, while a message-passing model shares its parameters
-across every node and edge and therefore applies unchanged to a network it has
-never seen. Node features typically include the active and reactive injection,
-the voltage magnitude and angle, and the bus type; edge features carry the
-series resistance and reactance, the shunt susceptance and the transformer tap
-ratio. Expressing all of these in per unit is what makes the features
-comparable across networks of different voltage levels.
-
-PER-UNIT SYSTEM
-The per-unit system expresses electrical quantities as fractions of a chosen
-base. A base apparent power S_base and a base voltage V_base are selected for
-each voltage level; base current and base impedance follow as I_base = S_base
-/ (sqrt(3) V_base) and Z_base = V_base^2 / S_base. Dividing every quantity by
-its base removes the voltage level from the numbers, so a 380 kV line and a 20
-kV feeder have comparable impedances of a few hundredths per unit. Transformer
-ratios largely disappear, which is the main practical reason the convention is
-universal in power flow software. A bus voltage of 1.02 per unit means two
-percent above nominal regardless of whether nominal is 400 volts or 400
-kilovolts.
-
-POWER FLOW
-The AC power flow problem solves for the complex voltage at every bus given
-the injections and the network admittance matrix. The governing equation is S
-= V .* conj(Y V), where S is the vector of complex nodal injections, V the
-vector of complex bus voltages and Y the bus admittance matrix. Because the
-equations are non-linear in the voltage magnitudes and angles, they are solved
-iteratively, most commonly by the Newton-Raphson method. Each bus is
-classified as PQ, where active and reactive injections are known, PV, where
-active power and voltage magnitude are known, or slack, where voltage
-magnitude and angle are fixed and the injection is whatever balances the
-system. Convergence is not guaranteed: heavily loaded systems near the nose of
-the PV curve, or systems that have been split by an outage, may have no
-solution at all.
-
-VOLTAGE LIMITS
-Operational voltage limits protect equipment and customer appliances.
-Transmission planning commonly uses a band of 0.95 to 1.05 per unit, while EN
-50160 permits plus or minus ten percent at the point of common coupling in low
-voltage networks for 95 percent of weekly ten-minute averages. Undervoltage is
-typically caused by heavy load far from a source; overvoltage in distribution
-networks is increasingly caused by distributed generation exporting power
-along a feeder with appreciable resistance. Because the R/X ratio of low
-voltage cables is high, active power export raises voltage much more strongly
-there than in a transmission network, which is why photovoltaic hosting
-capacity is frequently limited by voltage rather than by thermal rating.
-
-THERMAL RATING
-A line or transformer is thermally limited by the temperature its conductors
-and insulation can tolerate. The static rating is a current derived from a
-conservative assumption about ambient temperature, wind speed and solar
-radiation. Because the actual cooling conditions are usually better than
-assumed, dynamic line rating can release substantial additional capacity,
-particularly on windy days, which is also when wind generation is highest.
-Loading is normally reported as a percentage of the rating, and a value above
-one hundred percent is an overload. Short overloads are not immediately
-damaging; the constraint is thermal energy over time, so ratings are often
-specified for several durations.
-
-N-1 CRITERION
-The N-1 criterion requires that the system remain within all operational
-limits after the loss of any single component. It is a deterministic
-reliability standard and the backbone of European transmission planning and
-operation. Compliance is assessed by contingency analysis: a power flow is
-solved for the base case and then for every credible single outage, and the
-resulting voltages and branch loadings are checked against their limits. For a
-network with several thousand branches this means several thousand power
-flows, which is why fast approximations and machine learning surrogates for
-contingency screening are an active research area.
-
-STATE ESTIMATION
-State estimation reconstructs the most likely system state from redundant and
-noisy measurements. The classical formulation is weighted least squares:
-minimise the weighted sum of squared differences between measured quantities
-and the values implied by an estimated state, subject to the network model.
-Redundancy is essential, both to reduce the effect of measurement noise and to
-allow bad data detection. A system is observable if the available measurements
-are sufficient to determine the state uniquely; unobservable islands must be
-handled by pseudo measurements, typically load forecasts. Phasor measurement
-units provide direct, time-synchronised measurements of voltage angle, which
-changes the structure of the problem considerably.
-
-LOAD FORECASTING
-Short-term load forecasting predicts demand from minutes to a few days ahead
-and underpins unit commitment, market bidding and congestion management.
-Demand is driven by the time of day, the day of the week, holidays, and
-weather, principally temperature. The relationship with temperature is
-V-shaped: heating demand rises below a comfort threshold of roughly fifteen
-degrees Celsius and cooling demand rises above roughly twenty-two degrees, so
-a single linear coefficient averages two opposing effects into nothing. Strong
-baselines are persistence and seasonal naive forecasts; a model that does not
-clearly beat the value from the same hour of the previous week has not
-demonstrated anything.
-
-RENEWABLE FORECASTING
-Photovoltaic generation is bounded below by zero and is exactly zero whenever
-the sun is below the horizon, so any forecast that predicts non-zero output at
-night is physically wrong regardless of its error metric. Clipping predictions
-at zero and forcing night hours to zero is free accuracy and removes an entire
-class of impossible states. Wind power follows a turbine power curve: output
-is zero below the cut-in speed of about three metres per second, rises
-approximately with the cube of wind speed, saturates at rated speed around
-twelve metres per second, and is curtailed above the cut-out speed near
-twenty-five metres per second. Aggregating many sites smooths the cut-out
-discontinuity because the wind speed differs across a country.
-
-RESIDUAL LOAD
-Residual load is demand minus non-dispatchable generation, usually wind and
-photovoltaic. It is the quantity the conventional fleet and the market must
-actually serve, and it is more volatile than demand alone because it inherits
-weather variability. As installed renewable capacity grows, residual load
-develops a pronounced midday depression on sunny days, the shape often called
-the duck curve, and can become negative in periods of low demand and high
-wind. Negative residual load is the principal driver of negative day-ahead
-prices, which occur when inflexible generation and must-run units would rather
-pay to keep producing than shut down and restart.
-
-DAY-AHEAD MARKET
-The day-ahead market clears hourly or quarter-hourly products for the
-following delivery day, typically by a uniform-price auction at midday. The
-clearing price is set by the marginal unit, so the price curve resembles the
-merit order of the fleet: cheap when residual load is low and steep when
-expensive peaking plant is required. Prices can be negative when renewable
-generation exceeds demand and curtailment is more expensive than paying
-consumers to absorb energy. Forecast errors in load or renewable generation
-are settled in the intraday and balancing markets, which is why forecast
-accuracy has a direct and measurable economic value.
-
-FREQUENCY CONTROL
-System frequency is the instantaneous indicator of the balance between
-generation and demand. A surplus of generation raises frequency and a deficit
-lowers it, with the rate of change determined by the inertia of the rotating
-masses connected to the system. Frequency containment reserve responds
-automatically within seconds to arrest a deviation, frequency restoration
-reserve returns frequency to nominal over minutes, and replacement reserve
-restores the faster products. Converter-connected generation provides no
-inherent inertia, so as its share grows the rate of change of frequency after
-a disturbance increases, and synthetic inertia or faster reserve products
-become necessary.
-
-GRAPH REPRESENTATION
-A power network is naturally a graph: buses are nodes and branches are edges.
-Representing it this way matters for machine learning because a fixed-width
-model trained on a thirty-bus network cannot even be evaluated on a hundred-
-and-eighteen-bus one, while a message-passing model shares its parameters
-across every node and edge and therefore applies unchanged to a network it has
-never seen. Node features typically include the active and reactive injection,
-the voltage magnitude and angle, and the bus type; edge features carry the
-series resistance and reactance, the shunt susceptance and the transformer tap
-ratio. Expressing all of these in per unit is what makes the features
-comparable across networks of different voltage levels.
