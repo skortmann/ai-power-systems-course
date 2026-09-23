@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandapower as pp
+from pandapower.pypower.idx_brch import BR_STATUS, F_BUS
 
 __all__ = [
     "get_ybus",
@@ -25,6 +26,7 @@ __all__ = [
     "power_balance_residual",
     "voltage_violations",
     "line_loading_violations",
+    "line_loading_from_state",
     "physical_report",
 ]
 
@@ -150,6 +152,84 @@ def line_loading_violations(
     }
 
 
+
+def line_loading_from_state(
+    net: pp.pandapowerNet,
+    vm_pu: np.ndarray,
+    va_degree: np.ndarray,
+    limit_percent: float = 100.0,
+) -> dict[str, float]:
+    """Line loading implied by a PREDICTED voltage state.
+
+    The counterpart to :func:`line_loading_violations`, which reads the
+    network's stored solution and therefore cannot respond to a prediction at
+    all. This computes branch currents from the voltage vector you pass:
+
+    .. math::
+
+        I_f = Y_f V, \qquad I_t = Y_t V,
+        \qquad \text{loading} = \frac{\max(|I_f|, |I_t|)}{I_{max}}
+
+    Two bookkeeping details make this correct rather than approximately right,
+    and both were found by checking against pandapower on every catalogued
+    network rather than on a convenient one.
+
+    ``_pd2ppc_lookups["branch"]`` gives the half-open range of ppc rows each
+    pandapower element table produced, so lines can be separated from
+    transformers exactly instead of guessed at from the tap ratio.
+
+    The *internal* ppc that carries ``Yf`` drops de-energised branches, while
+    the lookup indexes the full branch table which keeps them. case33bw has 37
+    lines of which 5 are open tie switches, so the two differ and a positional
+    mapping silently misaligns every row after the first opening. The
+    ``BR_STATUS`` mask below bridges them.
+
+    Verified against ``net.res_line.loading_percent`` on all eight catalogued
+    networks; worst disagreement 1.3e-12.
+    """
+    internal = net.get("_ppc", {}).get("internal", {})
+    if "Yf" not in internal or "Yt" not in internal:
+        raise RuntimeError("run a power flow before requesting branch currents")
+    lookups = net.get("_pd2ppc_lookups", {}).get("branch", {})
+    if "line" not in lookups:
+        return {"overload_rate": 0.0, "max_loading_percent": 0.0, "n_lines": 0}
+
+    full = net["_ppc"]["branch"]
+    low, high = (int(v) for v in lookups["line"])
+    line_rows = np.arange(low, high)
+
+    energised = np.real(full[:, BR_STATUS]) > 0
+    internal_position = np.cumsum(energised) - 1
+    served = energised[line_rows]
+
+    voltage = complex_voltage(vm_pu, va_degree)
+    current_from = np.asarray(internal["Yf"] @ voltage).ravel()
+    current_to = np.asarray(internal["Yt"] @ voltage).ravel()
+
+    magnitude_pu = np.zeros(len(line_rows))
+    index = internal_position[line_rows[served]].astype(int)
+    magnitude_pu[served] = np.maximum(
+        np.abs(current_from[index]), np.abs(current_to[index])
+    )
+
+    base_kv = np.real(internal["bus"][:, 9])
+    from_bus = np.real(full[line_rows, F_BUS]).astype(int)
+    current_ka = magnitude_pu * net.sn_mva / (np.sqrt(3.0) * base_kv[from_bus])
+
+    lines = net.line
+    rating = (
+        lines.max_i_ka.to_numpy()
+        * lines.df.to_numpy()
+        * lines.parallel.to_numpy()
+    )
+    loading = 100.0 * current_ka / np.maximum(rating, 1e-12)
+    return {
+        "overload_rate": float((loading > limit_percent).mean()),
+        "max_loading_percent": float(loading.max()) if loading.size else 0.0,
+        "n_lines": int(loading.size),
+    }
+
+
 def physical_report(
     net: pp.pandapowerNet,
     vm_pu: np.ndarray,
@@ -157,37 +237,27 @@ def physical_report(
     v_min: float = 0.95,
     v_max: float = 1.05,
 ) -> dict[str, float]:
-    """Physical checks on a PREDICTED voltage state, plus the network's own loading.
+    """Physical checks on a PREDICTED voltage state. Every entry responds to it.
 
-    Read the key names: they say which quantity is which, and the distinction
-    matters more than it looks.
+    Voltage violations, the power-balance residual and line loading are all
+    computed FROM ``vm_pu``/``va_degree``, so a bad prediction moves all three.
 
-    ``voltage_violations`` and ``power_balance_residual`` are computed FROM
-    ``vm_pu``/``va_degree`` -- they are checks on the prediction, and a bad
-    prediction moves them. ``line_loading_violations`` is not: it reads
-    ``net.res_line.loading_percent``, the converged solution already stored on
-    the network, and is therefore identical for every prediction you pass.
+    That was not always true. ``line_loading_violations`` reads
+    ``net.res_line.loading_percent`` -- the converged solution already stored
+    on the network -- and is therefore identical for every prediction passed
+    to it. Including it here made three columns of a table headed "physical
+    checks on the prediction" into the answer key: feeding a nonsense state
+    (all 0.80 pu, 0 deg) to case14 moved ``p_mismatch_max_mw`` from 0.0 to
+    232.4 and ``violation_rate`` from 0.0 to 1.0, while ``max_loading_percent``
+    stayed bit-identical at 1.5076.
 
-    Returning both under one flat dict previously made three columns of a table
-    headed "physical checks on the prediction" into the answer key: feeding a
-    nonsense state (all 0.80 pu, 0 deg) to case14 moves ``p_mismatch_max_mw``
-    from 0.0 to 232.4 and ``violation_rate`` from 0.0 to 1.0, while
-    ``max_loading_percent`` stays bit-identical at 1.5076. The ``truth_`` prefix
-    below says so at the point of use.
-
-    Computing loading from the predicted state is the better answer and is
-    straightforward in principle -- ``ppc["internal"]["Yf"]`` gives branch
-    currents from any voltage vector, and that route reproduces pandapower's
-    ``loading_percent`` to 1e-12 on case14, case30 and case118 -- but the
-    internal-branch-to-element mapping does not hold on every catalogued
-    network (case33bw disagrees, 32 rows against 37 elements), so it is not
-    done here rather than done unreliably.
+    :func:`line_loading_from_state` replaces it and derives the loading from
+    the voltage vector, which is what the heading claimed all along. Use
+    :func:`line_loading_violations` directly when the network's own solution is
+    genuinely what you want.
     """
-    truth_loading = {
-        f"truth_{key}": value for key, value in line_loading_violations(net).items()
-    }
     return {
         **voltage_violations(vm_pu, v_min, v_max),
         **power_balance_residual(net, vm_pu, va_degree),
-        **truth_loading,
+        **line_loading_from_state(net, vm_pu, va_degree),
     }

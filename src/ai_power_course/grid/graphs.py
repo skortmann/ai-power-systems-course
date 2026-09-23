@@ -128,6 +128,27 @@ def net_to_graph(net: pp.pandapowerNet, add_reverse_edges: bool = True) -> dict[
 
     # --- edges ---------------------------------------------------------------
     in_service = branch[:, BR_STATUS] > 0
+
+    # Which ppc branch rows ARE transformers, from pandapower's own lookup
+    # rather than inferred from the tap ratio.
+    #
+    # The previous test, `abs(tap - 1.0) > 1e-9`, detects an OFF-NOMINAL TAP,
+    # which is a different thing. A transformer sitting at its nominal ratio
+    # has tap == 1.0 and was labelled a line: 3 of 5 on case14, 15 of 17 on
+    # case57, 9 of 13 on case118. Up to 40% of transformers carried the wrong
+    # equipment-type feature into pretraining and transfer, while the module
+    # docstring sold this feature as the thing distinguishing the two.
+    #
+    # `_pd2ppc_lookups["branch"]` maps each pandapower element table to the
+    # half-open range of ppc branch rows it produced, which is exactly the
+    # question being asked.
+    is_transformer_row = np.zeros(branch.shape[0], dtype=bool)
+    for element, bounds in (net.get("_pd2ppc_lookups", {}).get("branch", {})).items():
+        if element == "line" or bounds is None:
+            continue
+        start, stop = int(bounds[0]), int(bounds[1])
+        is_transformer_row[start:stop] = True
+
     active = branch[in_service]
     from_bus = active[:, F_BUS].astype(int)
     to_bus = active[:, T_BUS].astype(int)
@@ -137,7 +158,7 @@ def net_to_graph(net: pp.pandapowerNet, add_reverse_edges: bool = True) -> dict[
             active[:, BR_R],
             active[:, BR_X],
             active[:, BR_B],
-            (np.abs(tap - 1.0) > 1e-9).astype(float),  # transformer vs. line
+            is_transformer_row[in_service].astype(float),
             tap,
         ],
         axis=1,

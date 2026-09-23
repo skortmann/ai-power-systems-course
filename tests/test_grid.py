@@ -174,21 +174,56 @@ def test_line_loading_and_full_report(solved_case14):
     assert loading["max_loading_percent"] >= 0
     vm, va = internal_state(solved_case14)
     report = physical_report(solved_case14, vm, va)
-    assert {"violation_rate", "p_mismatch_max_mw", "truth_overload_rate"} <= set(report)
+    assert {"violation_rate", "p_mismatch_max_mw", "max_loading_percent"} <= set(report)
 
-    # The prefix is load-bearing, so test what it promises: the prediction-based
-    # entries must respond to a nonsense state and the truth-based ones must not.
+    # Every quantity in a report headed "checks on the prediction" must respond
+    # to the prediction. Line loading used to read the network's stored
+    # solution and was therefore constant whatever was passed in -- three
+    # columns of the answer key in a table about predictions.
     nonsense = physical_report(
         solved_case14, np.full_like(vm, 0.80), np.zeros_like(va)
     )
     assert nonsense["violation_rate"] > report["violation_rate"]
     assert nonsense["p_mismatch_max_mw"] > report["p_mismatch_max_mw"]
-    for key in report:
-        if key.startswith("truth_"):
-            assert nonsense[key] == report[key], (
-                f"{key} claims to describe the network's own solution but moved "
-                f"when the predicted state changed"
-            )
+    assert nonsense["max_loading_percent"] != report["max_loading_percent"], (
+        "line loading did not move when the predicted state changed, so it is "
+        "being read from the network's own solution rather than computed"
+    )
+
+
+def test_line_loading_from_state_matches_pandapower(solved_case14):
+    """The derived loading must reproduce pandapower's own on the true state.
+
+    This is what licenses using it on a PREDICTED state: if it disagrees where
+    the answer is known, it cannot be trusted where it is not.
+    """
+    from ai_power_course.grid.physics import line_loading_from_state
+
+    derived = line_loading_from_state(solved_case14, *internal_state(solved_case14))
+    assert derived["n_lines"] == len(solved_case14.line)
+    assert derived["max_loading_percent"] == pytest.approx(
+        float(solved_case14.res_line.loading_percent.max()), abs=1e-9
+    )
+
+
+@pytest.mark.parametrize("name", ["case9", "case33bw", "case57", "case118"])
+def test_line_loading_from_state_handles_every_catalogued_network(name):
+    """case33bw is the one that matters: 37 lines, 5 of them open tie switches.
+
+    The internal ppc that carries Yf drops de-energised branches while the
+    element lookup keeps them, so a positional mapping misaligns every row
+    after the first opening.
+    """
+    from ai_power_course.grid.networks import load_network, run_power_flow
+    from ai_power_course.grid.physics import line_loading_from_state
+
+    net = load_network(name)
+    assert run_power_flow(net)
+    derived = line_loading_from_state(net, *internal_state(net))
+    assert derived["n_lines"] == len(net.line)
+    assert derived["max_loading_percent"] == pytest.approx(
+        float(net.res_line.loading_percent.max()), abs=1e-6
+    )
 
 
 def test_complex_voltage_roundtrip():
