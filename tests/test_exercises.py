@@ -72,11 +72,22 @@ def test_task_ids_are_unique_and_well_formed():
 
 
 def test_task_count_is_within_the_intended_range():
-    # Three to five substantive tasks per chapter; the brief asks for 35-45.
-    total = len(all_tasks())
-    assert 35 <= total <= 45, f"{total} tasks is outside the intended range"
+    """Size the CORE course separately from any optional chapter.
+
+    Counting them together would let an advanced chapter quietly absorb the
+    budget the ten required chapters are supposed to fit into -- the bound
+    exists to stop the onboarding course growing, and an optional extra is not
+    part of that course.
+    """
+    core = [c for c in CHAPTERS if not c.optional]
+    core_total = sum(len(c.tasks) for c in core)
+    assert len(core) == 10, f"expected ten core chapters, found {len(core)}"
+    assert 35 <= core_total <= 45, (
+        f"{core_total} core tasks is outside the intended range"
+    )
     for chapter in CHAPTERS:
-        assert 3 <= len(chapter.tasks) <= 6, (
+        upper = 8 if chapter.optional else 6
+        assert 3 <= len(chapter.tasks) <= upper, (
             f"chapter {chapter.number} has {len(chapter.tasks)} tasks"
         )
 
@@ -235,7 +246,19 @@ def test_the_exercise_notebook_warns_against_reading_the_solution(exercise):
 
 
 def test_the_final_challenge_is_present_and_open_ended(exercise, solution):
-    final = all_tasks()[-1]
+    """The capstone of the CORE course, which is chapter 10's last task.
+
+    Pinned to the core course rather than to `all_tasks()[-1]`, so that adding
+    an optional advanced chapter does not silently move what "the final
+    challenge" means.
+    """
+    core_tasks = [
+        task
+        for chapter in CHAPTERS
+        if not chapter.optional
+        for task in chapter.tasks
+    ]
+    final = core_tasks[-1]
     assert final.task_id == "TASK-10-06"
     assert final.kind == "reflection"
     assert "token" in final.background.lower()
