@@ -317,11 +317,28 @@ def generate_corpus(
         "or disturbance is described.",
         "",
     ]
-    parts += [_log_entry(rng) for _ in range(n_logs)]
-    parts.append("")
-    parts += [_disturbance_report(rng) + "\n" for _ in range(n_reports)]
-    parts.append("")
-    parts += [_asset_record(rng) for _ in range(n_assets)]
+    # INTERLEAVE the three record types instead of writing them in blocks.
+    #
+    # Tutorial 07 holds out the last 10% of this file. With the records grouped
+    # by type, that slice was 233 ASSET records and nothing else -- zero logs,
+    # zero disturbance reports -- against a training mix of 1,400 logs, 220
+    # reports and 87 assets. Validation was a different KIND of text from
+    # training, and asset records are the most rigid template of the three, so
+    # the reported perplexity measured "can it finish an asset record" rather
+    # than "did it generalise". Fixing the earlier duplication bug made this
+    # visible: validation perplexity IMPROVED from 3.59 to 1.35, which is the
+    # wrong direction for removing a leak and is what exposed the confound.
+    #
+    # Shuffling the records together makes any contiguous slice a
+    # representative sample of the record distribution. The handbook stays at
+    # the front, so the prose is training-only by construction -- that is a
+    # deliberate choice and the tutorial says so.
+    records = (
+        [_log_entry(rng) for _ in range(n_logs)]
+        + [_disturbance_report(rng) + "\n" for _ in range(n_reports)]
+        + [_asset_record(rng) for _ in range(n_assets)]
+    )
+    parts += [records[i] for i in rng.permutation(len(records))]
     return "\n".join(parts)
 
 

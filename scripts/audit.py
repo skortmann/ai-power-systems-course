@@ -35,6 +35,11 @@ MASK_LENGTH = 16
 #: How many independent positions to perturb when probing a causal mask.
 N_MASK_PROBES = 8
 
+#: The language model's context length. Overlap between train and validation
+#: only matters up to this span: beyond it the model could not have memorised
+#: the continuation anyway. Keep in step with TinyGPTConfig.context.
+LM_CONTEXT = 128
+
 # --------------------------------------------------------------------------
 
 import math
@@ -504,20 +509,49 @@ def audit_corpus_and_dataset_leakage() -> None:
     cut = int(0.9 * len(text))
     train, valid = text[:cut], text[cut:]
     rng = np.random.default_rng(0)
+
+    # Measure at several window lengths, because short-window overlap in
+    # TEMPLATED text is coincidence rather than contamination and the two look
+    # identical at a single width. Genuine duplication does not decay with
+    # length -- the old repeated-handbook bug sat at 61.6% even at 129 chars.
+    # Template coincidence does: 26.3% at 40, 7.2% at 65, 0.7% at 90, 0.0% at
+    # 128. The threshold that matters is the model's CONTEXT LENGTH, since that
+    # is the longest span it could have memorised a continuation for.
     rates = {}
-    for width in (65, 129):
+    for width in (40, 65, 90, LM_CONTEXT):
         hits = 0
         for _ in range(2000):
             start = int(rng.integers(0, len(valid) - width))
             if valid[start : start + width] in train:
                 hits += 1
         rates[width] = hits / 2000.0
-    worst = max(rates.values())
+    decays = all(
+        rates[a] >= rates[b] for a, b in zip(sorted(rates)[:-1], sorted(rates)[1:], strict=True)
+    )
+    at_context = rates[LM_CONTEXT]
     record(
         "the LM validation split is not a copy of the training split",
-        "PASS" if worst < 0.05 else "FAIL",
-        "; ".join(f"{w}-char windows verbatim in train: {r:.1%}" for w, r in rates.items())
-        + " (was 66.0% when the repeated handbook sat in the final 10%)",
+        "PASS" if at_context < 0.01 and decays else "FAIL",
+        "; ".join(f"{w}ch {r:.1%}" for w, r in sorted(rates.items()))
+        + f" -- must be ~0 at the {LM_CONTEXT}-char context and must DECAY with "
+        f"length (decays: {decays}). Was 66.0% at 65ch and 61.6% at 129ch when "
+        f"the repeated handbook sat in the final 10%.",
+    )
+
+    # The split must also be REPRESENTATIVE. Removing the duplication is not
+    # enough if validation is a different kind of text: with the records
+    # grouped by type the held-out tail was 233 asset records and zero logs or
+    # disturbance reports, so perplexity measured template completion on the
+    # most rigid record type. That confound made validation perplexity IMPROVE
+    # from 3.59 to 1.35 when the duplication was removed -- the wrong
+    # direction, which is how it was caught.
+    kinds = ("LOG", "DISTURBANCE", "ASSET")
+    present = {k: valid.count(k) for k in kinds}
+    record(
+        "the LM validation split contains every record type",
+        "PASS" if all(v > 0 for v in present.values()) else "FAIL",
+        "validation holds " + ", ".join(f"{v} {k}" for k, v in present.items())
+        + "; training holds " + ", ".join(f"{train.count(k)} {k}" for k in kinds),
     )
 
     from sklearn.model_selection import train_test_split
