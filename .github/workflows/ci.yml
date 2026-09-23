@@ -12,7 +12,7 @@ concurrency:
 
 env:
   # Every job runs the reduced configuration: tiny models, few epochs, small
-  # samples. This is what makes executing all ten notebooks affordable in CI
+  # samples. This is what makes executing all eleven notebooks affordable in CI
   # while leaving the versions students receive untouched.
   AI_POWER_COURSE_FAST: "1"
   # Keep BLAS from oversubscribing the runner's two cores.
@@ -62,6 +62,10 @@ jobs:
           - "01_ 02_ 03_ 04_"
           - "05_ 06_ 07_"
           - "08_ 09_ 10_"
+          # Tutorial 11 is optional/advanced and the heaviest of the set
+          # (a Flower simulation plus federated graph pretraining), so it
+          # gets its own group rather than lengthening an existing one.
+          - "11_"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

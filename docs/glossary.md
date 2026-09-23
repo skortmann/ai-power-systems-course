@@ -314,3 +314,108 @@ grids. [10]
 
 **Physics-informed loss** — adding a term penalising violation of a physical
 law (here, the AC power-balance residual) to the training objective. [10]
+
+## Federated learning *(Tutorial 11, optional)*
+
+**Federated learning (FL)** — training one model across several parties that
+never pool their raw data. Each party optimises locally and shares model
+updates, which are aggregated centrally. It is an *architecture for where data
+lives*, not a privacy mechanism. [11]
+
+**FedAvg** — the baseline algorithm: broadcast the global parameters, train
+locally, and aggregate by a weighted mean with weights proportional to each
+client's dataset size. With one full-batch local step it is exactly one
+large-batch step over the union of the data; with more local steps it is not,
+and the difference is client drift. [11]
+
+**FedProx** — FedAvg plus a proximal term $\frac{\mu}{2}\lVert w - w^t\rVert^2$
+in the local objective, penalising movement away from the parameters the round
+started from. $\mu = 0$ recovers FedAvg exactly. [11]
+
+**SCAFFOLD** — corrects client drift with control variates that estimate the
+difference between the global and local update directions, rather than
+penalising drift as FedProx does. Costs extra client state and double the
+communication. [11]
+
+**Client** — one participant. In the DSO setting a client is an *organization*,
+not a device or a feeder. [11]
+
+**Communication round** — one broadcast–train–aggregate cycle. The unit that
+federated cost is measured in, as opposed to the epoch. [11]
+
+**Local epochs** — how much optimisation each client does per round. More local
+epochs means fewer rounds for the same computation and more drift. [11]
+
+**Client drift** — divergence of clients' parameters during local training,
+because each optimises its own objective. Measured here as the mean L2 distance
+from each client's post-training parameters to the global ones. [11]
+
+**Statistical heterogeneity / non-IID** — clients drawing from different
+distributions. Four kinds: *quantity skew*, *feature distribution skew*, *label
+distribution skew*, and *concept shift* ($P_k(y \mid x)$ differs). Concept shift
+is the one power grids exhibit most sharply, because different topologies
+genuinely implement different functions. [11]
+
+**System heterogeneity** — clients differing in compute, memory, network or
+availability, as opposed to differing in data. [11]
+
+**Cross-device FL** — very many small, unreliable clients (phones, meters).
+**Cross-silo FL** — few large, contractually stable clients (DSOs, hospitals,
+banks). The DSO setting is cross-silo, and most smartphone-era intuitions need
+re-deriving for it. [11]
+
+**Secure aggregation** — a cryptographic protocol letting the server learn only
+the *sum* of client updates, never an individual one. Protects against an
+honest-but-curious server; does not bound what the sum itself reveals. [11]
+
+**Differential privacy (DP)** — a formal guarantee that any single unit of data
+changes the output distribution by at most $e^\epsilon$ (plus $\delta$). In FL
+it is built from clipping each update to a norm bound, adding calibrated noise,
+and *accounting* for the budget across rounds. All three steps are required; two
+of them without the third is not DP. [11]
+
+**Privacy budget ($\epsilon$)** — the DP parameter. Smaller is more private and
+less accurate. Quoting one requires an accountant, not just added noise. [11]
+
+**Privacy unit** — what "one record" means for a guarantee: a measurement, a
+household, a feeder, or an operator. The choice determines what an $\epsilon$
+actually promises. [11]
+
+**Gradient leakage / gradient inversion** — recovering training data from shared
+gradients or parameter updates. The reason data locality is not privacy. [11]
+
+**Membership inference** — determining whether a particular record was in the
+training set. Often the realistic concern for an operator, since "was this
+feeder used" can itself be sensitive. [11]
+
+**Threat model** — the named adversary a protection is evaluated against
+(honest-but-curious server, malicious server, participating competitor,
+external attacker, malicious client). Privacy claims are meaningless without
+one. [11]
+
+**Personalized FL** — sharing some components and keeping others local, for
+example a federated encoder with a per-client head. The local component is
+never transmitted, which is also its strongest privacy property. [11]
+
+**Federated analytics** — computing aggregate statistics across parties without
+centralising raw data, as distinct from training a model. Often a prerequisite:
+shared normalisation constants are themselves a federated computation. [11]
+
+**Federated self-supervised learning** — federated pretraining with an objective
+that needs no labels. What makes cross-organisation pretraining feasible at all,
+since participants never have to agree on a label schema. [11]
+
+**Federated foundation model (FedFM)** — a foundation model whose pretraining,
+adaptation, or both happen across decentralised private data. Four lifecycle
+variants exist (federated pretraining; central pretraining with federated
+fine-tuning; central model with purely local adapters; both stages federated).
+[11]
+
+**Federated fine-tuning** — adapting an existing foundation model across
+clients, rather than pretraining one. [11]
+
+**FedLoRA** — federating only LoRA adapter matrices over a frozen shared
+backbone. The backbone is distributed once and never re-transmitted, which is
+what makes federating a large model affordable. Note that averaging $A$ and $B$
+separately is not the same as averaging the product $BA$; FFA-LoRA and FlexLoRA
+address that. [11]

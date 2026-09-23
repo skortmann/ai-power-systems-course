@@ -668,3 +668,46 @@ the file:
 from build_notebooks import build
 build(only=("07_",), fast=True)
 ```
+
+---
+
+## Tutorial 11 — optional, and how to use it
+
+Tutorial 11 (*Federated Learning and Federated Foundation Models*) is marked
+**optional / advanced**. The ten-tutorial onboarding course is complete without
+it, and the README says so. Nothing in 01–10 depends on it.
+
+**Who it is for.** Readers who have finished the course and are choosing a
+thesis topic. It ends with eleven open research questions, and they are open.
+
+**Prerequisites.** Tutorials 04 (representation learning), 08 (LoRA) and 10
+(the Mini-GridFM) specifically. A student who has not seen LoRA will not follow
+§17, and one who has not seen masked pretraining will not follow §19.
+
+**Runtime.** About 7 minutes in classroom mode, of which roughly 25 seconds is
+Ray starting up for the Flower simulation. It is the heaviest notebook in the
+course and has its own CI group for that reason.
+
+**The extra dependency.** Tutorial 11 is the only notebook that needs
+`flwr[simulation]`, which pulls in Ray. It is a normal dependency of the
+project, so `uv sync` covers it; be aware it is the largest single install.
+
+**Teaching notes.**
+
+- §7 deliberately reports the *gradient-step budget* alongside the accuracy
+  comparison. FedAvg spends the most local computation and still does not beat
+  local training on this problem. That is the honest result, and students
+  should be asked why before being told.
+- §10 shows FedProx buying essentially nothing (3% drift reduction, worse
+  accuracy). This is a negative result about the *benchmark*, not the method —
+  three well-conditioned clients have no drift worth correcting. It is a good
+  discussion prompt about when a method's published benefits transfer.
+- §12 is the section to slow down on. The claim "federated learning makes data
+  private" is common, wrong, and the exercise track's Task 11.6 asks students to
+  dismantle it.
+- §13 implements clipping and noise and **deliberately does not** implement an
+  accountant or quote an epsilon. If a student asks what the epsilon is, the
+  answer is that computing it is the missing step, and Opacus is where to get it.
+- §20's transfer result — federated pretraining ahead at 5 labels, centralized
+  ahead at 36 — is one seed on a tiny model. Present it as a methodology
+  working, not a benchmark.

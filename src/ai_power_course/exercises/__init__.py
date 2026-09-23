@@ -168,6 +168,11 @@ class Chapter:
     #: Runs in *both* notebooks and must never depend on student output.
     setup_code: str
     tasks: tuple[Task, ...] = field(default_factory=tuple)
+    #: True for chapters outside the ten-tutorial onboarding course. The course
+    #: is complete without them, and the structural tests size the core course
+    #: separately so that adding an advanced chapter cannot quietly relax the
+    #: constraints on the chapters students are actually required to do.
+    optional: bool = False
 
     def __post_init__(self) -> None:
         for task in self.tasks:

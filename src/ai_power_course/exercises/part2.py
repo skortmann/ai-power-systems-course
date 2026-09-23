@@ -3572,10 +3572,848 @@ CHAPTER_10 = Chapter(
     ),
 )
 
+
+
+CHAPTER_11 = Chapter(
+    number=11,
+    title="Federated Learning and Federated Foundation Models",
+    tutorial="11_federated_learning_and_foundation_models.ipynb",
+    optional=True,
+    intro="""
+    **Optional / Advanced.** Chapters 01-10 are the onboarding course. This one
+    assumes you have finished them.
+
+    Four Distribution System Operators would like a shared model and cannot
+    pool their data. You will implement Federated Averaging from nothing, run a
+    federation round by hand, measure what heterogeneity does to it, count the
+    bytes a federated foundation model would actually move, and federate LoRA
+    adapters over a frozen backbone.
+
+    One sentence to keep in view throughout: raw training samples stay with
+    their operator, and model updates do not. Task 11.6 is about exactly that
+    distinction.
+    """,
+    setup_code="""
+    import copy
+
+    import numpy as np
+    import torch
+    from torch import nn
+
+    from ai_power_course.config import fast_mode, scaled, set_seed
+    from ai_power_course.federated import (
+        ClientData, build_dso_clients, evaluate, local_train,
+        standardise_clients, state_dict_bytes, trainable_state_dict,
+    )
+
+    set_seed()
+    torch.set_num_threads(min(4, torch.get_num_threads()))
+
+    N_SAMPLES = scaled(full=100, fast=40)
+    dso_clients = standardise_clients(build_dso_clients(n_samples=N_SAMPLES))
+    federation = [c for c in dso_clients if c.name != "DSO_D"]
+    N_FEATURES = dso_clients[0].x_train.shape[1]
+
+    def make_model():
+        "The same small MLP for every experiment, so comparisons are like-for-like."
+        return nn.Sequential(
+            nn.Linear(N_FEATURES, 32), nn.ReLU(),
+            nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 1),
+        )
+
+    print(f"{len(federation)} participating DSOs, {len(dso_clients) - len(federation)} held out")
+    for _c in dso_clients:
+        print(f"  {_c.name}  n_train={_c.n_train:4d}  "
+              f"mean target={float(_c.y_train.mean()):.4f}  {_c.description}")
+    """,
+    tasks=(
+        Task(
+            number="11.1",
+            title="Implement FedAvg",
+            kind="coding",
+            difficulty=1,
+            background="""
+            Federated Averaging is one weighted mean over parameter tensors:
+
+            $$w_{t+1} = \\sum_{k} \\frac{n_k}{\\sum_j n_j}\\, w_{t+1}^{(k)}$$
+
+            The weighting by dataset size is the whole algorithm. A client with
+            ten times the data pulls the average ten times as hard.
+            """,
+            instruction="""
+            Write `federated_average(client_weights, client_sizes)`, taking a
+            list of `state_dict`-like mappings and a list of sample counts, and
+            returning one aggregated mapping.
+            """,
+            requirements=(
+                "The output has exactly the same keys as the inputs.",
+                "Every output tensor has the same shape as its inputs.",
+                "Weighting is proportional to `client_sizes`, not uniform.",
+                "The input mappings are NOT mutated.",
+            ),
+            hints=(
+                "Iterate over the keys of the first client and build a new dict.",
+                "`sum(state[k] * (n / total) for state, n in zip(...))` is enough.",
+                "Returning `client_weights[0]` after in-place `+=` mutates the caller's tensors.",
+            ),
+            expected="""
+            With two clients holding 1 and 3 samples, the aggregate sits three
+            quarters of the way toward the second client.
+            """,
+            exercise_code="""
+            def federated_average(client_weights, client_sizes):
+                "Weighted mean of parameter tensors. Do not mutate the inputs."
+                # TODO
+                ...
+
+
+            # Two clients, sizes 1 and 3 -> weights 0.25 and 0.75.
+            state_a = {"w": torch.tensor([1.0, 2.0]), "b": torch.tensor([0.0])}
+            state_b = {"w": torch.tensor([3.0, 4.0]), "b": torch.tensor([2.0])}
+            aggregated = federated_average([state_a, state_b], [1, 3])
+            print(aggregated)
+            """,
+            solution_code="""
+            def federated_average(client_weights, client_sizes):
+                "Weighted mean of parameter tensors. Do not mutate the inputs."
+                if len(client_weights) != len(client_sizes):
+                    raise ValueError("one size per client state is required")
+                total = float(sum(client_sizes))
+                if total <= 0:
+                    raise ValueError("total dataset size must be positive")
+
+                aggregated = {}
+                for key in client_weights[0]:
+                    # Start from a fresh tensor so the caller's state is untouched.
+                    acc = torch.zeros_like(client_weights[0][key], dtype=torch.float64)
+                    for state, size in zip(client_weights, client_sizes):
+                        acc += state[key].detach().to(torch.float64) * (size / total)
+                    aggregated[key] = acc.to(client_weights[0][key].dtype)
+                return aggregated
+
+
+            state_a = {"w": torch.tensor([1.0, 2.0]), "b": torch.tensor([0.0])}
+            state_b = {"w": torch.tensor([3.0, 4.0]), "b": torch.tensor([2.0])}
+            aggregated = federated_average([state_a, state_b], [1, 3])
+            print(aggregated)
+            print(f"equal weighting would have given w = [2.0, 3.0]")
+            """,
+            check_code="""
+            assert set(aggregated) == {"w", "b"}, "keys must be preserved"
+            assert aggregated["w"].shape == state_a["w"].shape, "shapes must be preserved"
+            assert torch.allclose(aggregated["w"], torch.tensor([2.5, 3.5])), (
+                f"expected [2.5, 3.5] for sizes 1:3, got {aggregated['w'].tolist()}"
+            )
+            assert torch.allclose(aggregated["b"], torch.tensor([1.5]))
+            assert torch.allclose(state_a["w"], torch.tensor([1.0, 2.0])), (
+                "inputs were mutated -- build a new dict instead of accumulating in place"
+            )
+            _uniform = torch.tensor([2.0, 3.0])
+            assert not torch.allclose(aggregated["w"], _uniform), (
+                "this is the UNWEIGHTED mean; weight by client_sizes"
+            )
+            print("Basic checks passed.")
+            """,
+            explanation="""
+            The two failure modes the check targets are the ones that actually
+            happen.
+
+            **Unweighted averaging** produces `[2.0, 3.0]` and looks perfectly
+            reasonable. It silently gives a client with three samples the same
+            influence as one with a thousand, and on a federation with unequal
+            partners that is a different algorithm with a different fixed point.
+
+            **In-place accumulation** into `client_weights[0]` passes every
+            numerical check on the first round and corrupts the federation
+            afterwards, because the server has just edited a client's tensors.
+            Building a fresh dict costs nothing and removes the class of bug.
+
+            The float64 accumulation is a small detail with a real effect: over
+            many clients, summing float32 products loses precision in exactly
+            the low-order bits that distinguish one round's update from the
+            next.
+            """,
+        ),
+        Task(
+            number="11.2",
+            title="Build one federation round",
+            kind="coding",
+            difficulty=2,
+            background="""
+            A communication round is five steps: broadcast, local training,
+            collect, aggregate, evaluate. No framework required, and building it
+            once is what makes Flower legible later.
+            """,
+            instruction="""
+            Complete `federated_round`, which takes a global `state_dict` and
+            returns the aggregated state after one round over `federation`.
+            Then run it for several rounds and print the mean validation MAE.
+            """,
+            requirements=(
+                "Every client starts the round from a COPY of the global state.",
+                "Each client trains only on its own data.",
+                "Aggregation is weighted by each client's training-set size.",
+                "The global model improves over the rounds you run.",
+            ),
+            hints=(
+                "`copy.deepcopy(global_state)` before `load_state_dict`.",
+                "`local_train(model, c.x_train, c.y_train, epochs=...)` runs the local step.",
+                "Reuse your `federated_average` from 11.1.",
+            ),
+            expected="""
+            Mean validation MAE falls over the rounds. It will not match a
+            centrally trained model — that gap is the subject of the tutorial.
+            """,
+            depends_on=("11.1",),
+            exercise_code="""
+            def federated_round(global_state, clients, local_epochs=10, lr=0.02):
+                "One communication round. Returns the new global state."
+                client_states, client_sizes = [], []
+                for client in clients:
+                    model = make_model()
+                    # TODO: load a COPY of the global state,
+                    # train locally, and collect the resulting state.
+                    ...
+                return federated_average(client_states, client_sizes)
+
+
+            set_seed()
+            global_state = {k: v.clone() for k, v in make_model().state_dict().items()}
+            round_history = []
+            for round_index in range(5):
+                global_state = federated_round(global_state, federation)
+                probe = make_model()
+                probe.load_state_dict(global_state)
+                maes = [evaluate(probe, c.x_valid, c.y_valid) for c in federation]
+                round_history.append(float(np.mean(maes)))
+                print(f"round {round_index + 1}: mean validation MAE {round_history[-1]:.5f}")
+            """,
+            solution_code="""
+            def federated_round(global_state, clients, local_epochs=10, lr=0.02):
+                "One communication round. Returns the new global state."
+                client_states, client_sizes = [], []
+                for client in clients:
+                    model = make_model()
+                    model.load_state_dict(copy.deepcopy(global_state))   # broadcast
+                    local_train(                                          # local step
+                        model, client.x_train, client.y_train,
+                        epochs=local_epochs, lr=lr,
+                    )
+                    client_states.append(
+                        {k: v.detach().clone() for k, v in model.state_dict().items()}
+                    )
+                    client_sizes.append(client.n_train)
+                return federated_average(client_states, client_sizes)
+
+
+            set_seed()
+            global_state = {k: v.clone() for k, v in make_model().state_dict().items()}
+            round_history = []
+            for round_index in range(5):
+                global_state = federated_round(global_state, federation)
+                probe = make_model()
+                probe.load_state_dict(global_state)
+                maes = [evaluate(probe, c.x_valid, c.y_valid) for c in federation]
+                round_history.append(float(np.mean(maes)))
+                print(f"round {round_index + 1}: mean validation MAE {round_history[-1]:.5f}")
+            """,
+            check_code="""
+            assert len(round_history) == 5, "run five rounds"
+            assert all(np.isfinite(round_history)), "some round produced a non-finite MAE"
+            assert round_history[-1] < round_history[0], (
+                f"the federation should improve: {round_history[0]:.5f} -> "
+                f"{round_history[-1]:.5f}. If it did not, check that each client "
+                f"starts from a COPY of the global state rather than sharing it."
+            )
+            print(f"Checks passed: mean MAE fell from {round_history[0]:.5f} "
+                  f"to {round_history[-1]:.5f} over 5 rounds.")
+            """,
+            explanation="""
+            The `copy.deepcopy` is the line that matters. Without it every
+            client holds a reference to the *same* tensors, so each one trains
+            on top of the previous client's work and the "average" is taken over
+            four views of one object. The loop still runs, the loss still falls,
+            and the algorithm is no longer FedAvg — it is sequential training
+            with extra steps.
+
+            That failure is worth seeing once, because it produces plausible
+            output and no error.
+            """,
+        ),
+        Task(
+            number="11.3",
+            title="Analyse non-IID clients",
+            kind="analysis",
+            difficulty=2,
+            background="""
+            The four DSOs run different networks under different regimes. Their
+            targets have visibly different distributions, which is the point:
+            a federation of identical clients would not test anything.
+            """,
+            instruction="""
+            Compare local-only, centralized and federated training, and report
+            **per-client** metrics rather than one average.
+            """,
+            requirements=(
+                "Train one local model per DSO on its own data.",
+                "Train one centralized model on the pooled data.",
+                "Run a federation with the same total local budget.",
+                "Report per-client MAE, the mean, and the worst client.",
+            ),
+            hints=(
+                "`torch.cat` the participants' tensors for the centralized model.",
+                "Reuse `federated_round` from 11.2.",
+                "Give every method the same number of local epochs to keep it fair.",
+            ),
+            expected="""
+            The per-client column varies substantially. Whether federation beats
+            local training will depend on the client — that variation is the
+            finding, not a defect.
+            """,
+            depends_on=("11.1", "11.2"),
+            exercise_code="""
+            EPOCHS = 20
+
+            local_scores, central_scores, federated_scores = {}, {}, {}
+
+            # TODO: fill the three dictionaries with per-client
+            # validation MAE, keyed by client name.
+
+            comparison = pd.DataFrame({
+                "local only": local_scores,
+                "centralized": central_scores,
+                "federated": federated_scores,
+            })
+            print(comparison.round(5))
+            """,
+            solution_code="""
+            import pandas as pd
+
+            EPOCHS = 20
+
+            # --- local only
+            local_scores = {}
+            for client in federation:
+                set_seed()
+                model = make_model()
+                local_train(model, client.x_train, client.y_train, epochs=EPOCHS, lr=0.02)
+                local_scores[client.name] = evaluate(model, client.x_valid, client.y_valid)
+
+            # --- centralized
+            set_seed()
+            pooled_x = torch.cat([c.x_train for c in federation])
+            pooled_y = torch.cat([c.y_train for c in federation])
+            central = make_model()
+            local_train(central, pooled_x, pooled_y, epochs=EPOCHS, lr=0.02)
+            central_scores = {
+                c.name: evaluate(central, c.x_valid, c.y_valid) for c in federation
+            }
+
+            # --- federated
+            set_seed()
+            state = {k: v.clone() for k, v in make_model().state_dict().items()}
+            for _ in range(5):
+                state = federated_round(state, federation, local_epochs=EPOCHS // 5)
+            fed_model = make_model()
+            fed_model.load_state_dict(state)
+            federated_scores = {
+                c.name: evaluate(fed_model, c.x_valid, c.y_valid) for c in federation
+            }
+
+            comparison = pd.DataFrame({
+                "local only": local_scores,
+                "centralized": central_scores,
+                "federated": federated_scores,
+            })
+            comparison.loc["mean"] = comparison.mean()
+            comparison.loc["worst client"] = comparison.iloc[:-1].max()
+            print(comparison.round(5))
+            print()
+            print(f"Best mean: {comparison.loc['mean'].idxmin()}")
+            print(f"Best worst-case: {comparison.loc['worst client'].idxmin()}")
+            """,
+            check_code="""
+            assert set(local_scores) == {c.name for c in federation}, (
+                "score every participating DSO"
+            )
+            assert set(central_scores) == set(local_scores)
+            assert set(federated_scores) == set(local_scores)
+            _spread = max(local_scores.values()) - min(local_scores.values())
+            assert _spread > 0, "per-client scores should differ -- these clients are not identical"
+            print(f"Checks passed. Spread across clients, local-only: {_spread:.5f} pu")
+            """,
+            explanation="""
+            The number to look at is the spread, not the mean.
+
+            A federation is usually reported as one global metric, and one
+            global metric is exactly the statistic that hides a participant the
+            federation is failing. If DSO B's error under the global model is
+            worse than the model it could have trained alone, then B is paying
+            for the federation and receiving nothing — and the average will not
+            say so.
+
+            This is why the tutorial reports mean, worst client and spread
+            everywhere, and why personalization (a shared body with a local
+            head) exists as an architecture rather than as an afterthought.
+            """,
+        ),
+        Task(
+            number="11.4",
+            title="Communication accounting",
+            kind="coding",
+            difficulty=2,
+            background="""
+            Federated learning is a systems problem as much as an optimisation
+            problem. Before adopting a method, count the bytes it moves.
+            """,
+            instruction="""
+            Write `model_size_bytes(parameters)` and use it to compare the
+            communication cost of federating a full model against federating
+            only a small adapter, over several rounds and clients.
+            """,
+            requirements=(
+                "`model_size_bytes` sums `numel() * element_size()` over the tensors.",
+                "Count BOTH directions: server to client and client to server.",
+                "Report per-round and total cost.",
+                "Extrapolate to a 1-billion-parameter model.",
+            ),
+            hints=(
+                "`tensor.element_size()` is the bytes per value; do not assume 4.",
+                "Per round the wire carries `2 * n_clients * payload`.",
+                "A billion float32 parameters is 4 GB per message.",
+            ),
+            expected="""
+            The adapter payload is orders of magnitude smaller, and the
+            billion-parameter extrapolation is large enough to rule out naive
+            full-model federation.
+            """,
+            exercise_code="""
+            def model_size_bytes(parameters):
+                "Total bytes of a mapping of name -> tensor."
+                # TODO
+                ...
+
+
+            full_payload = make_model().state_dict()
+            adapter_payload = {"A": torch.zeros(4, 32), "B": torch.zeros(32, 4)}
+
+            N_CLIENTS, N_ROUNDS_ACCT = 4, 50
+            full_bytes = model_size_bytes(full_payload)
+            adapter_bytes = model_size_bytes(adapter_payload)
+            print(f"full model : {full_bytes:,} bytes per message")
+            print(f"adapter    : {adapter_bytes:,} bytes per message")
+            """,
+            solution_code="""
+            def model_size_bytes(parameters):
+                "Total bytes of a mapping of name -> tensor."
+                return int(sum(t.numel() * t.element_size() for t in parameters.values()))
+
+
+            full_payload = make_model().state_dict()
+            adapter_payload = {"A": torch.zeros(4, 32), "B": torch.zeros(32, 4)}
+
+            N_CLIENTS, N_ROUNDS_ACCT = 4, 50
+            full_bytes = model_size_bytes(full_payload)
+            adapter_bytes = model_size_bytes(adapter_payload)
+
+            def total_mb(payload_bytes, clients=N_CLIENTS, rounds=N_ROUNDS_ACCT):
+                # Both directions: down to every client and back up again.
+                return payload_bytes * clients * 2 * rounds / 1e6
+
+            print(f"full model : {full_bytes:,} bytes/message, "
+                  f"{total_mb(full_bytes):.3f} MB over {N_ROUNDS_ACCT} rounds")
+            print(f"adapter    : {adapter_bytes:,} bytes/message, "
+                  f"{total_mb(adapter_bytes):.3f} MB over {N_ROUNDS_ACCT} rounds")
+            print(f"ratio      : {full_bytes / adapter_bytes:.1f}x")
+            print()
+
+            billion = 1_000_000_000 * 4          # float32
+            print(f"A 1B-parameter model, 100 clients, 100 rounds:")
+            print(f"  {billion / 1e9:.0f} GB per message")
+            print(f"  {billion * 100 * 2 / 1e12:.1f} TB per round")
+            print(f"  {billion * 100 * 2 * 100 / 1e12:,.0f} TB in total")
+            """,
+            check_code="""
+            _expected = sum(t.numel() * t.element_size() for t in full_payload.values())
+            assert model_size_bytes(full_payload) == _expected, (
+                "size must use numel() * element_size(), summed over all tensors"
+            )
+            assert model_size_bytes({}) == 0, "an empty payload is zero bytes"
+            _half = {"x": torch.zeros(10, dtype=torch.float16)}
+            assert model_size_bytes(_half) == 20, (
+                f"float16 is 2 bytes per value, so 10 values is 20 bytes, "
+                f"got {model_size_bytes(_half)} -- do not hard-code 4 bytes"
+            )
+            assert adapter_bytes < full_bytes, "the adapter should be the smaller payload"
+            print("Basic checks passed.")
+            """,
+            explanation="""
+            The float16 case in the check is there on purpose. Hard-coding four
+            bytes per parameter is the natural shortcut, it is right for
+            float32, and it silently doubles every number the moment anyone
+            quantises — which is one of the standard communication-reduction
+            techniques and therefore exactly when the accounting matters.
+
+            Counting both directions matters for the same reason. Reporting only
+            the upload halves the total and makes every method look twice as
+            good as it is.
+            """,
+        ),
+        Task(
+            number="11.5",
+            title="Federated LoRA",
+            kind="coding",
+            difficulty=3,
+            background="""
+            The communication arithmetic rules out shipping a foundation model
+            every round. LoRA's answer: freeze the backbone, learn a low-rank
+            update, and federate only the adapters.
+
+            $$W' = W + BA, \\qquad \\operatorname{rank}(BA) \\ll \\min(\\dim W)$$
+            """,
+            instruction="""
+            Wrap a model's `Linear` layers in LoRA modules, freeze the base
+            weights, and aggregate *only* the adapter tensors across clients.
+            """,
+            requirements=(
+                "Base weights have `requires_grad = False`.",
+                "Adapter tensors A and B have `requires_grad = True`.",
+                "`B` is zero-initialised, so the adapted model starts equal to the base.",
+                "Only adapter tensors are aggregated.",
+            ),
+            hints=(
+                "`trainable_state_dict(model)` returns exactly the `requires_grad` tensors.",
+                "Zero-initialising B makes `W + BA == W` at step zero.",
+                "Reuse `federated_average` from 11.1 on the adapter payload only.",
+            ),
+            expected="""
+            The aggregated payload is a small fraction of the full model, and
+            the backbone is provably untouched by the round.
+            """,
+            depends_on=("11.1",),
+            exercise_code="""
+            class LoRALinear(nn.Module):
+                def __init__(self, base, rank=4, alpha=8.0):
+                    super().__init__()
+                    self.base = base
+                    # TODO: freeze the base, create A and B.
+                    ...
+
+                def forward(self, x):
+                    # TODO: base output plus the scaled low-rank update.
+                    ...
+
+
+            def add_lora(model, rank=4):
+                for name, child in list(model.named_children()):
+                    if isinstance(child, nn.Linear):
+                        setattr(model, name, LoRALinear(child, rank=rank))
+                    else:
+                        add_lora(child, rank)
+                return model
+
+
+            set_seed()
+            lora_model = add_lora(make_model(), rank=4)
+            lora_payload = trainable_state_dict(lora_model)
+            print(f"aggregated tensors: {list(lora_payload)}")
+            """,
+            solution_code="""
+            class LoRALinear(nn.Module):
+                def __init__(self, base, rank=4, alpha=8.0):
+                    super().__init__()
+                    self.base = base
+                    for p in self.base.parameters():
+                        p.requires_grad = False                    # frozen backbone
+                    self.A = nn.Parameter(torch.randn(rank, base.in_features) * 0.01)
+                    self.B = nn.Parameter(torch.zeros(base.out_features, rank))
+                    self.scaling = alpha / rank
+
+                def forward(self, x):
+                    return self.base(x) + (x @ self.A.T @ self.B.T) * self.scaling
+
+
+            def add_lora(model, rank=4):
+                for name, child in list(model.named_children()):
+                    if isinstance(child, nn.Linear):
+                        setattr(model, name, LoRALinear(child, rank=rank))
+                    else:
+                        add_lora(child, rank)
+                return model
+
+
+            set_seed()
+            lora_model = add_lora(make_model(), rank=4)
+            lora_payload = trainable_state_dict(lora_model)
+
+            n_trainable = sum(p.numel() for p in lora_model.parameters() if p.requires_grad)
+            n_total = sum(p.numel() for p in lora_model.parameters())
+            print(f"trainable {n_trainable:,} / {n_total:,} ({n_trainable / n_total:.1%})")
+            print(f"aggregated tensors ({len(lora_payload)}): {list(lora_payload)}")
+
+            # Federate the adapters only, across three simulated clients.
+            adapters = [trainable_state_dict(add_lora(make_model(), rank=4))
+                        for _ in range(len(federation))]
+            merged = federated_average(adapters, [c.n_train for c in federation])
+            print(f"merged adapter tensors: {list(merged)}")
+            """,
+            check_code="""
+            _bases = [m for m in lora_model.modules() if isinstance(m, LoRALinear)]
+            assert _bases, "no LoRALinear layers were inserted"
+            assert all(not p.requires_grad for m in _bases for p in m.base.parameters()), (
+                "base weights must be frozen (requires_grad = False)"
+            )
+            assert all(m.A.requires_grad and m.B.requires_grad for m in _bases), (
+                "adapter tensors A and B must be trainable"
+            )
+            assert all(torch.allclose(m.B, torch.zeros_like(m.B)) for m in _bases), (
+                "B must be zero-initialised so the adapted model starts equal to the base"
+            )
+            assert all("base" not in k for k in lora_payload), (
+                f"only adapters should be aggregated, but the payload contains "
+                f"{[k for k in lora_payload if 'base' in k][:3]}"
+            )
+            _full = sum(t.numel() for t in make_model().state_dict().values())
+            _lora = sum(t.numel() for t in lora_payload.values())
+            assert _lora < _full, "the adapter payload should be smaller than the full model"
+            print(f"Checks passed: {_lora:,} adapter values vs {_full:,} full-model values.")
+            """,
+            explanation="""
+            Zero-initialising `B` is the detail that makes this work rather than
+            merely compile. With `B = 0` the product `BA` is zero, so the adapted
+            model is *exactly* the base model before any training. Every client
+            therefore starts the federation from the same function, which is the
+            precondition for averaging their adapters to mean anything.
+
+            Initialise both matrices randomly and each client starts from a
+            different perturbation of the backbone; the average of those is not
+            a sensible starting point, and the federation spends its first
+            rounds undoing the initialisation.
+
+            A subtlety worth knowing about, which this task does not implement:
+            averaging `A` and `B` separately is not the same as averaging the
+            product `BA`, because the mean of products is not the product of
+            means. Methods such as FFA-LoRA and FlexLoRA exist precisely to deal
+            with that discrepancy.
+            """,
+        ),
+        Task(
+            number="11.6",
+            title="Critique a privacy claim",
+            kind="reflection",
+            difficulty=2,
+            background="""
+            A vendor proposal lands on your desk containing one sentence:
+
+            > "Federated learning makes the training data private."
+            """,
+            instruction="""
+            Critique it. A yes/no answer is not the exercise — separate the
+            claims that are true from the ones that are not, and say what would
+            have to be added before the sentence could be defended.
+            """,
+            requirements=(
+                "Distinguish raw data locality from privacy.",
+                "Explain what a model update can leak.",
+                "Name what secure aggregation adds, and what it does not.",
+                "Name what differential privacy adds, and what it costs.",
+                "State why a threat model has to come first.",
+            ),
+            expected="""
+            A paragraph a colleague could act on, not a verdict.
+            """,
+            answer_template="""
+            **What the sentence gets right:**
+
+            _..._
+
+            **What it gets wrong:**
+
+            _..._
+
+            **What a model update can leak:**
+
+            _..._
+
+            **What I would require before signing this off:**
+
+            _..._
+            """,
+            answer="""
+            **What the sentence gets right.** Under the standard architecture
+            raw training samples do stay with the operator that owns them. That
+            is a genuine and useful property — it can satisfy a contractual
+            restriction on data transfer, and it removes the central database
+            that would otherwise be the single most attractive target.
+
+            **What it gets wrong.** It conflates *data locality* with *privacy*.
+            Model updates leave the client every round, and an update is a
+            deterministic function of the data that produced it. Tutorial 11
+            measures this directly: updates computed from the same data are
+            nearly identical, and updates from different data are visibly
+            different. Anything carrying that much reliable signal is a channel.
+
+            **What an update can leak.** Gradient-inversion work (Zhu et al.
+            2019; Geiping et al. 2020) reconstructs training samples from shared
+            gradients, and a parameter difference is an accumulated gradient.
+            More realistic for a DSO is membership inference — not "reconstruct
+            this household's profile" but "was this feeder in the training set",
+            which can itself be commercially sensitive. Repeated observation
+            across rounds leaks more than a single round does.
+
+            **Secure aggregation** stops the *server* from seeing any individual
+            update; it learns only the sum. It does not stop the sum itself from
+            encoding information, and with only four participants a server
+            colluding with two of them can isolate a third.
+
+            **Differential privacy** bounds how much any single unit can
+            influence the published model, which is the only formal guarantee
+            available here. It costs accuracy, and the cost falls hardest on
+            rare events — which in a power system are the overloads and unusual
+            outages that are the most valuable things to learn from.
+
+            **Why the threat model comes first.** "Private" is not a property of
+            a system, it is a property of a system relative to an adversary.
+            Protecting against an honest-but-curious server, a competitor inside
+            the federation, and a malicious participant are three different
+            engineering problems with three different answers. A proposal that
+            does not name its adversary cannot be evaluated, only believed.
+
+            **What I would require.** A named threat model; a statement of the
+            privacy unit (measurement, household, feeder, or operator); if DP is
+            claimed, the mechanism, the accountant and the resulting epsilon,
+            not just "noise is added"; and whether secure aggregation is
+            actually implemented or merely described.
+            """,
+        ),
+        Task(
+            number="11.7",
+            title="Design a Federated GridFM",
+            kind="reflection",
+            difficulty=3,
+            background="""
+            Four European DSOs want a transferable grid foundation model. They
+            will not exchange raw feeder models or measurements. They have
+            different network sizes, different voltage levels and partly
+            different measurement infrastructure.
+            """,
+            instruction="""
+            Specify the system. There is no uniquely correct design — the
+            exercise is to make choices and defend them.
+            """,
+            requirements=(
+                "Client definition: what is one client?",
+                "Data and modalities available locally.",
+                "Which components are global, and which stay local.",
+                "The self-supervised pretraining objective.",
+                "What exactly is aggregated.",
+                "What federation protects, and what else would be needed.",
+                "How transfer to an unseen fifth DSO is evaluated.",
+                "How communication cost is controlled.",
+                "How the model is checked for physical plausibility.",
+            ),
+            expected="""
+            A design a colleague could criticise on specifics.
+            """,
+            answer_template="""
+            **Client definition:** _..._
+
+            **Local data and modalities:** _..._
+
+            **Global components:** _..._
+
+            **Local components:** _..._
+
+            **Pretraining objective:** _..._
+
+            **What is aggregated:** _..._
+
+            **Privacy:** _..._
+
+            **Transfer evaluation:** _..._
+
+            **Communication:** _..._
+
+            **Physical validation:** _..._
+            """,
+            answer="""
+            One defensible design. Other choices are defensible too; what
+            follows commits to specifics so it can be argued with.
+
+            **Client definition.** One client is one DSO, not one feeder. This
+            is cross-silo: a handful of large, persistent, contractually bound
+            participants. Making a feeder the client would multiply the
+            participant count without adding institutional diversity, and it is
+            the institution that owns the legal constraint.
+
+            **Local data and modalities.** Each DSO holds network topology and
+            equipment parameters, plus some subset of SCADA, smart meters, PMU
+            and market data. Assume the subsets differ, because they do.
+
+            **Global components.** A message-passing encoder over the grid
+            graph. This is the only architecture that survives the fact that
+            every operator has a different number of buses — a fixed-width model
+            cannot even be evaluated across them. Per-modality input adapters
+            are also global where two operators share a modality.
+
+            **Local components.** Task heads, and any modality encoder unique to
+            one operator. Keeping the head local is both the personalization
+            mechanism and the strongest privacy property in the design: a
+            component that is never transmitted cannot be inverted from an
+            update.
+
+            **Pretraining objective.** Masked state reconstruction: hide bus
+            features, rebuild them from the rest of the network. It needs no
+            labels, which is what makes it federatable — the operators never
+            have to agree on a label schema. Add a physics-informed term
+            penalising AC power-balance violation at the reconstructed state, so
+            the representation is pushed toward physically realisable states
+            rather than merely plausible numbers.
+
+            **What is aggregated.** Encoder parameters, weighted by each
+            operator's number of operating points. Once the encoder is large
+            enough for that payload to matter, freeze it and federate LoRA
+            adapters instead; the tutorial's arithmetic shows where that
+            crossover sits.
+
+            **Privacy.** Federation keeps raw feeder models and measurements
+            local. That is all it does. On top of it I would want secure
+            aggregation, so no single operator's update is visible to the server
+            or to a competitor in the federation; and DP with a *per-operator*
+            privacy unit if the participants' concern is commercial rather than
+            personal. The tension to state openly is that a rare congestion
+            event is both the most valuable training signal and the most
+            identifying record.
+
+            **Transfer evaluation.** Hold out a fifth DSO entirely. Freeze the
+            encoder, fit only a small head, and measure error as a function of
+            labelled operating points from that operator — 5, 10, 25, 100.
+            Compare against a specialist trained on the fifth DSO alone and
+            against predicting the training mean. The interesting result is
+            label efficiency at the low end, not the ceiling at the high end.
+
+            **Communication.** Federate adapters rather than the backbone;
+            distribute the frozen backbone once. Reduce round frequency before
+            reducing client count. Quantise the payload, and account for the
+            saving honestly in both directions.
+
+            **Physical validation.** Statistical error is not sufficient. For
+            each predicted state, compute the AC power-balance residual against
+            the operator's own network model, check voltage magnitudes against
+            operating limits, and confirm losses are positive. A model with good
+            MAE that predicts physically impossible states has learned the
+            dataset, not the grid — and the whole argument for a grid foundation
+            model is that it learned the grid.
+            """,
+        ),
+    ),
+)
+
 CHAPTERS: tuple[Chapter, ...] = (
     CHAPTER_06,
     CHAPTER_07,
     CHAPTER_08,
     CHAPTER_09,
     CHAPTER_10,
+    CHAPTER_11,
 )
