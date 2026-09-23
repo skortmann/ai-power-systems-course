@@ -101,7 +101,13 @@ def r2(y_true: ArrayLike, y_pred: ArrayLike) -> float:
 
 
 def nrmse(y_true: ArrayLike, y_pred: ArrayLike) -> float:
-    """RMSE normalised by the mean of the truth (%). Comparable across grids."""
+    """RMSE normalised by the mean ABSOLUTE truth (%). Comparable across grids.
+
+    ``mean(|y|)`` rather than ``mean(y)``, which matters for any signal that
+    crosses zero -- net load, prices, reactive power. On a sign-crossing series
+    the two differ substantially, and the mean can approach zero and send the
+    ratio to infinity while the mean absolute value stays well behaved.
+    """
     true, pred = _as_pair(y_true, y_pred)
     return float(100.0 * rmse(true, pred) / np.mean(np.abs(true)))
 

@@ -1,9 +1,23 @@
 """The course-wide leaderboard.
 
-Tutorials 01-09 all forecast day-ahead load on the same test split. Each one
-appends its result here, so tutorial 10 can print a single table showing
-persistence -> linear -> gradient boosting -> MLP -> LSTM -> Transformer ->
-zero-shot foundation model without anybody re-running six notebooks.
+Tutorials 01-09 forecast day-ahead load on the same series and the same test
+PERIOD. Each one appends its result here, so tutorial 10 can print a single
+table showing persistence -> linear -> gradient boosting -> MLP -> LSTM ->
+Transformer -> zero-shot foundation model without anybody re-running six
+notebooks.
+
+**They are not all evaluated on the same test SAMPLE, and the table says so.**
+The feature-based tutorials (01, 02) score on ``make_supervised`` forecast
+origins; the sequence tutorials (03, 06) score on ``make_windows`` windows,
+which start later because each needs 168 hours of leading context. Recovering
+each row's reference from ``RMSE / (1 - Skill)`` shows two distinct baselines:
+about 2,952 for 01/02 and about 3,018 for 03/06.
+
+That makes MAE and RMSE comparable to within the difference between two
+overlapping samples of the same period, and it makes **Skill not comparable
+across those groups at all**, because the denominator differs. The
+``Reference_RMSE`` column exists so a reader can see which baseline a row was
+scored against instead of having to derive it.
 
 Results are stored as JSON under ``data/artifacts/``. Re-running a notebook
 overwrites that notebook's own entries and leaves the others alone, so the
@@ -115,8 +129,39 @@ def record(
 
 
 def leaderboard_table(task: str = "load_day_ahead", sort_by: str = "MAE") -> pd.DataFrame:
-    """Return the current leaderboard, best first where the metric allows it."""
+    """Return the current leaderboard, best first where the metric allows it.
+
+    Adds ``Reference_RMSE``, recovered as ``RMSE / (1 - Skill)``. Rows whose
+    reference differs were scored against a different baseline, so their Skill
+    values are not comparable with one another -- see the module docstring.
+    Sorting defaults to MAE rather than Skill for exactly that reason.
+    """
     frame = Leaderboard().to_frame(task=task)
+    if {"RMSE", "Skill"} <= set(frame.columns):
+        skill = frame["Skill"]
+        frame["Reference_RMSE"] = (frame["RMSE"] / (1.0 - skill)).where(
+            skill.notna() & (skill != 1.0)
+        )
     if sort_by in frame.columns:
         frame = frame.sort_values(sort_by)
     return frame.round(3)
+
+
+def reference_groups(task: str = "load_day_ahead", tolerance: float = 1.0) -> dict:
+    """Group leaderboard rows by the baseline their Skill was measured against.
+
+    More than one group means Skill cannot be read down the column as a
+    ranking. Returns ``{rounded reference RMSE: [model names]}``.
+    """
+    frame = leaderboard_table(task=task)
+    if "Reference_RMSE" not in frame.columns:
+        return {}
+    groups: dict[float, list[str]] = {}
+    for (_tutorial, model), reference in frame["Reference_RMSE"].items():
+        if pd.isna(reference):
+            continue
+        bucket = next(
+            (key for key in groups if abs(key - reference) <= tolerance), round(reference, 1)
+        )
+        groups.setdefault(bucket, []).append(model)
+    return groups

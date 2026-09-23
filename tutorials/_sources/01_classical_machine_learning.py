@@ -70,7 +70,12 @@ from ai_power_course.data import load_energy_data, make_supervised, time_split
 from ai_power_course.metrics import mae, physical_violations, point_metrics, rmse, skill_score
 from ai_power_course.models.baselines import baseline_suite
 from ai_power_course.plotting import COLORS, plot_error_by_hour, plot_forecast, use_course_style
-from ai_power_course.results import Leaderboard, leaderboard_table, record
+from ai_power_course.results import (
+    Leaderboard,
+    leaderboard_table,
+    record,
+    reference_groups,
+)
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 use_course_style()
@@ -895,6 +900,24 @@ print("\nThis table is the spine of the course. Tutorials 02, 03, 06 and 09 appe
       "it, and tutorial 10 prints the finished version. It only ever contains rows from\n"
       "experiments that were actually executed — a tutorial you skip leaves a gap, it\n"
       "does not leave a guess.")
+
+# Say what the table can and cannot be read for, using its own numbers.
+_groups = reference_groups()
+if len(_groups) > 1:
+    print("\nOne caveat, and it is visible in the Reference_RMSE column. Rows here were")
+    print(f"scored against {len(_groups)} different baselines:")
+    for _ref, _models in sorted(_groups.items()):
+        print(f"  RMSE {_ref:8.1f}  <-  {', '.join(_models[:3])}"
+              f"{' and others' if len(_models) > 3 else ''}")
+    print()
+    print("The reason is that the feature-based tutorials score on forecast origins")
+    print("while the sequence tutorials score on windows, which start 168 hours later")
+    print("because each needs that much leading context. Same series, same test period,")
+    print("overlapping but not identical samples.")
+    print()
+    print("So MAE and RMSE are comparable to within that difference, and SKILL IS NOT")
+    print("comparable across the groups, because the denominator differs. That is why")
+    print("this table sorts by MAE and not by skill.")
 
 # %% [markdown]
 # ## 17. Exercises

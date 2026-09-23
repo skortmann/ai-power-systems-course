@@ -384,9 +384,13 @@ plt.show()
 # %% [markdown]
 # ## 8. What did it learn?
 #
-# The encoder was never told which grid a bus belongs to, what its voltage level
-# is, or whether the network is stressed. Pool its node embeddings into one
-# vector per operating state and look.
+# The encoder was never told which grid a bus belongs to, or whether the
+# network is stressed. It *was* told the voltage level -- `log_base_kv` is the
+# last entry of `NODE_FEATURE_NAMES` and is present in every node vector -- so
+# any structure the embedding shows along that axis is the input propagating,
+# not a discovery. Check the feature list before reading a plot as emergence.
+#
+# Pool the node embeddings into one vector per operating state and look.
 
 # %%
 @torch.no_grad()
@@ -633,23 +637,72 @@ for grid_name in heldout_graphs:
         tuned = 1 - scores["pretrained, fine-tuned"] / scratch
         print(f"{grid_name:11s}{n_train:>8d}{frozen:>11.1%}{tuned:>14.1%}")
 
-print("\nThree things this table says, in order of how surprising they are:\n")
-print("1. FINE-TUNING THE PRETRAINED ENCODER WINS, and wins by more on case33bw —")
-print("   the grid whose *structure* is furthest from anything seen in pretraining.")
-print("   That is the opposite of the intuition that transfer works best on similar")
-print("   systems, and it is because a radial feeder is the harder problem: there is")
-print("   more for a good initialisation to contribute.")
-print("\n2. THE FROZEN ENCODER IS CONSISTENTLY WORSE THAN TRAINING FROM SCRATCH.")
-print("   Five transmission networks do not contain the features a radial distribution")
-print("   feeder needs, and a small head on top cannot invent them. Freezing works")
-print("   when the pretraining distribution covers the target; here it does not, and")
-print("   pretending otherwise would be the easy mistake to make.")
-print("\n3. TRAINING FROM SCRATCH GETS *WORSE* WITH MORE DATA ON case33bw.")
-print("   That is not overfitting — the optimisation budget is fixed. It is")
-print("   instability: a randomly initialised message-passing network on a radial")
-print("   graph is a badly conditioned problem. The pretrained initialisation also")
-print("   stabilises optimisation, which is a real and under-discussed benefit of")
-print("   pretraining, separate from any transfer of knowledge.")
+# Derive each statement from the frame rather than asserting it.
+#
+# These conclusions used to be printed unconditionally. That is safe only if
+# the numbers never move -- and this is a single-seed stochastic experiment
+# that also runs under fast_mode() with different sample counts, so they do.
+# A notebook that narrates a result it did not obtain is the failure this
+# course spends tutorial 01 warning about.
+# Restrict to the (grid, budget) cells the table above actually prints: the
+# n_train == 0 rows are the trivial "predict the mean" baseline and have no
+# specialist to compare against.
+_rel = transfer[transfer.n_train.isin(LABEL_BUDGETS)].copy()
+_wide = _rel.pivot_table(
+    index=["grid", "n_train"], columns="method", values="vm MAE [pu]"
+).dropna()
+_scratch = _wide["specialist (from scratch)"]
+_frozen_gain = 1 - _wide["pretrained, frozen"] / _scratch
+_tuned_gain = 1 - _wide["pretrained, fine-tuned"] / _scratch
+
+print("\nWhat this table actually says, read off the numbers above:\n")
+
+_tuned_wins = float((_tuned_gain > 0).mean())
+print(f"1. FINE-TUNING beats training from scratch in {_tuned_wins:.0%} of the "
+      f"{len(_tuned_gain)} (grid, budget) cells,")
+print(f"   by {_tuned_gain.mean():+.1%} on average.")
+if len(set(g for g, _ in _tuned_gain.index)) > 1:
+    _by_grid = _tuned_gain.groupby(level="grid").mean()
+    _verb = "helps most" if _by_grid.max() > 0 else "hurts least"
+    print(f"   It {_verb} on {_by_grid.idxmax()} ({_by_grid.max():+.1%}) and "
+          f"{'least' if _by_grid.max() > 0 else 'most'} on "
+          f"{_by_grid.idxmin()} ({_by_grid.min():+.1%}).")
+    if _tuned_wins > 0.5:
+        print("   A bigger gain on the structurally most distant grid would be the")
+        print("   opposite of the usual intuition, and the reason would be that the")
+        print("   harder problem leaves more for a good initialisation to give.")
+    else:
+        print("   At this scale pretraining is NOT paying for itself on these targets.")
+        print("   Five transmission networks and a few hundred operating points are")
+        print("   not a foundation-model-sized pretraining corpus, and the honest")
+        print("   reading is that the methodology runs, not that it wins yet.")
+
+_frozen_wins = float((_frozen_gain > 0).mean())
+print(f"\n2. THE FROZEN ENCODER beats scratch in {_frozen_wins:.0%} of cells "
+      f"({_frozen_gain.mean():+.1%} on average).")
+if _frozen_wins < 0.5:
+    print("   Mostly worse, then. Transmission networks do not contain the features")
+    print("   a radial distribution feeder needs, and a small head on top cannot")
+    print("   invent them. Freezing works when the pretraining distribution covers")
+    print("   the target; here it does not.")
+else:
+    print("   Better than expected for a frozen encoder on out-of-distribution")
+    print("   topologies -- worth checking whether the head is doing more work")
+    print("   than the encoder.")
+
+_non_monotone = [
+    grid
+    for grid in _scratch.index.get_level_values("grid").unique()
+    if not _scratch.xs(grid, level="grid").is_monotonic_decreasing
+]
+print(f"\n3. TRAINING FROM SCRATCH does NOT improve monotonically with more data on: "
+      f"{_non_monotone if _non_monotone else 'no grid -- it improves everywhere'}.")
+if _non_monotone:
+    print("   That is not overfitting; the optimisation budget is fixed. It is")
+    print("   instability: a randomly initialised message-passing network on a")
+    print("   radial graph is badly conditioned. A pretrained initialisation also")
+    print("   stabilises optimisation, which is a real and under-discussed benefit")
+    print("   of pretraining, separate from any transfer of knowledge.")
 
 # %% [markdown]
 # **Read this result carefully, and do not let it be oversold.**

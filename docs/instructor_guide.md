@@ -353,7 +353,7 @@ pretraining, physics-informed loss, transfer to unseen topology.
 ## The exercise track
 
 [`tutorials/exercise.ipynb`](../tutorials/exercise.ipynb) has one chapter per
-tutorial, 44 tasks in total.
+tutorial, 51 tasks in total (44 across the ten core chapters, plus 7 in the optional chapter 11).
 [`tutorials/solution.ipynb`](../tutorials/solution.ipynb) works every one of them
 through and explains why the implementation looks the way it does. Both are
 generated from `src/ai_power_course/exercises/`, so if you edit a task, rebuild

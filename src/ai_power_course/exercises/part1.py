@@ -1640,10 +1640,24 @@ CHAPTER_04 = Chapter(
             assert (_b.sum(dim=1) == 6).all(), "each sample must hide exactly `block` positions"
             for _row in _b:
                 assert (torch.where(_row)[0].diff() == 1).all(), "the block must be contiguous"
-            _p, _t = torch.zeros(2, 4, 1), torch.ones(2, 4, 1)
+            # The error must DIFFER between hidden and visible positions, or a
+            # loss that ignores the mask entirely scores the same and passes.
             _m = torch.tensor([[True, False, False, False], [False, False, False, True]])
-            assert abs(float(masked_loss(_p, _t, _m)) - 1.0) < 1e-6, \\
-                "the loss must ignore visible positions"
+            _p = torch.zeros(2, 4, 1)
+            _t = torch.where(_m.unsqueeze(-1), 1.0, 10.0)      # 1 hidden, 10 visible
+            _got = float(masked_loss(_p, _t, _m))
+            assert abs(_got - 1.0) < 1e-6, (
+                f"expected 1.0, the squared error on the HIDDEN positions, got {_got:.4f}. "
+                f"An unmasked mean over all positions gives 75.25 here -- if that is "
+                f"your number, the mask is not being applied."
+            )
+            # A perfect reconstruction of the hidden positions must score zero,
+            # however wrong the visible ones are.
+            _p2 = torch.where(_m.unsqueeze(-1), 1.0, 0.0)
+            assert abs(float(masked_loss(_p2, _t, _m))) < 1e-6, (
+                "hidden positions are reconstructed exactly, so the loss must be 0; "
+                "a non-zero value means visible positions are leaking into it"
+            )
             print("Basic checks passed.")
             """,
             explanation="""

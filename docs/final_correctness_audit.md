@@ -532,7 +532,36 @@ says something else. That is a property of the method, not of this
 implementation, and it is the strongest argument in this report for
 commissioning independent review.
 
-**Open, recorded, not fixed.** The course ships with these:
+**Resolved after the audit.** Every item below was fixed in a follow-up pass
+and is listed here as the record of what was found, not as outstanding work.
+Two of them (T06's window claim, task 4.3's `scores`) had in fact been fixed
+during the audit itself; the list was stale.
+
+The three substantive ones are worth restating because of what they show:
+
+* `is_transformer` tested the tap ratio rather than the element type, so 3 of 5
+  transformers on case14, 15 of 17 on case57 and 9 of 13 on case118 carried the
+  wrong equipment-type feature into pretraining. Now exact on all eight
+  catalogued networks, via `_pd2ppc_lookups["branch"]`.
+* Line loading is now computed from the *predicted* state through `Yf`/`Yt`,
+  reproducing pandapower to **1.3e-12** on all eight networks. The audit had
+  left this open because a positional branch mapping failed on case33bw; the
+  cause was that the internal ppc carrying `Yf` drops de-energised branches
+  while the element lookup keeps them, and case33bw has five open tie switches.
+* T10's section conclusions were `print`ed unconditionally. Derived from the
+  frame instead, they report fine-tuning winning **100%** of cells at full
+  scale and **0%** in the reduced configuration CI runs — so the hard-coded
+  sentence was true in one configuration and false in the other, which is
+  precisely why it should never have been hard-coded.
+
+One fix produced a check worth having: T02's gradient-boosting contender omitted
+`early_stopping=False`, so scikit-learn carved a *random* validation split out
+of a time series — the leak Tutorial 01 spends a section warning about. Its MAE
+moved from 1785.059 to 1776.462, which is now **identical** to Tutorial 01's
+same-hyper-parameter model. Two identical models agreeing is the evidence the
+leak is gone.
+
+The original list:
 
 | Location | Issue | Severity |
 |---|---|---|

@@ -1103,7 +1103,10 @@ CHAPTER_07 = Chapter(
                 print(text[:200].replace("\\n", " | "))
                 print()
 
-            display(pd.DataFrame(rows).set_index("setting").round(3))
+            # Bind the frame: the self-check below reads `table.loc[...]`, so the
+            # name matters as much as the numbers in it.
+            table = pd.DataFrame(rows).set_index("setting")
+            display(table.round(3))
             """,
             solution_code="""
             import pandas as pd
@@ -1982,6 +1985,21 @@ CHAPTER_09 = Chapter(
                 "the weekly naive should beat flat persistence at a 24 h horizon"
             for _name, _p in predictions.items():
                 assert _p.shape == targets.shape, f"{_name} has the wrong shape"
+
+            # Zero skill against itself is necessary and nowhere near
+            # sufficient: a `score` that returns 0.0 unconditionally satisfies
+            # it. Check that the skill number actually RESPONDS, both ways.
+            _perfect = score("__probe_perfect", targets.copy())
+            assert _perfect["skill vs naive"] > 0.99, (
+                f"a perfect forecast must score skill ~1, got "
+                f"{_perfect['skill vs naive']:+.4f}"
+            )
+            _awful = score("__probe_awful", np.zeros_like(targets))
+            assert _awful["skill vs naive"] < 0.0, (
+                f"a forecast worse than the reference must score NEGATIVE skill, "
+                f"got {_awful['skill vs naive']:+.4f}"
+            )
+            del scores["__probe_perfect"], scores["__probe_awful"]
             print("Basic checks passed.")
             """,
             explanation="""
@@ -2730,6 +2748,33 @@ CHAPTER_10 = Chapter(
             assert out.shape == x.shape, "a layer must preserve the embedding shape"
             assert float((vectorised - looped).abs().max()) < 1e-4, \\
                 "index_add_ disagrees with the explicit loop"
+
+            # Both lines above compare REFERENCE code against reference code:
+            # `vectorised` and `looped` are built in the cell, not by the
+            # student's forward(). Test the student's layer directly, on the
+            # property that is actually easy to get wrong -- which end of an
+            # edge receives the message.
+            #
+            # A 3-node chain 0 -> 1 -> 2. After ONE layer, perturbing node 0
+            # must change node 1 and must not reach node 2.
+            _probe_edges = torch.tensor([[0, 1], [1, 2]])
+            _probe_ef = torch.zeros(2, len(EDGE_FEATURE_NAMES))
+            _probe_x = torch.randn(3, 32)
+            with torch.no_grad():
+                _base = layer(_probe_x, _probe_edges, _probe_ef)
+                _bumped = _probe_x.clone()
+                _bumped[0] += 5.0
+                _after = layer(_bumped, _probe_edges, _probe_ef)
+            _moved = (_after - _base).abs().max(dim=1).values
+            assert float(_moved[1]) > 1e-6, (
+                "perturbing node 0 did not change node 1 -- messages are not "
+                "flowing along the edge 0 -> 1"
+            )
+            assert float(_moved[2]) < 1e-6, (
+                f"perturbing node 0 changed node 2 by {float(_moved[2]):.2e} after a "
+                f"SINGLE layer. One layer reaches one hop; if node 2 moved, messages "
+                f"are being aggregated into the source rather than the target."
+            )
             print("Basic checks passed.")
             """,
             explanation="""

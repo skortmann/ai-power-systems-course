@@ -55,6 +55,22 @@ def set_seed(seed: int = SEED) -> int:
     torch.cuda.manual_seed_all(seed)
     # Deterministic CPU maths costs a little speed and buys reproducible numbers.
     torch.use_deterministic_algorithms(True, warn_only=True)
+
+    # Pin the CUDA path too. The course runs on CPU, where the line above is
+    # sufficient and two full training runs were verified bit-identical, but
+    # `torch_device()` will hand back a GPU when one exists and cuDNN picks
+    # algorithms nondeterministically by default.
+    #
+    # One limit worth stating rather than papering over: some cuBLAS kernels
+    # additionally need CUBLAS_WORKSPACE_CONFIG, and it is read when the CUDA
+    # context is created, so setting it from here would be too late to take
+    # effect. Export it before starting the process if you need bitwise
+    # determinism on a GPU:
+    #
+    #     CUBLAS_WORKSPACE_CONFIG=:4096:8 uv run jupyter lab
+    if torch.cuda.is_available():
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     return seed
 
 
