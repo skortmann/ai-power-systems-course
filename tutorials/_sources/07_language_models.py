@@ -161,7 +161,7 @@ if subword is not None:
 # | vocabulary | ~100 | 30 k–150 k |
 # | sequence length for the same text | long | ~4x shorter |
 # | embedding table | tiny | large |
-# | unknown symbols | impossible | impossible (falls back to bytes) |
+# | unknown symbols | **possible** — anything outside the corpus | impossible (falls back to bytes) |
 # | must learn spelling | yes | mostly no |
 #
 # Since attention costs $O(n^2)$, a 4x shorter sequence is a 16x cheaper

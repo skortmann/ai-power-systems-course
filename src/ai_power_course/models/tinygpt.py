@@ -37,8 +37,34 @@ class CharTokenizer:
     def vocab_size(self) -> int:
         return len(self.chars)
 
-    def encode(self, text: str) -> list[int]:
-        """Unknown characters are dropped — a tiny corpus has no [UNK] budget."""
+    def encode(self, text: str, on_unknown: str = "raise") -> list[int]:
+        """Encode ``text``; characters outside the corpus vocabulary are an error.
+
+        The default is ``"raise"`` on purpose. Silently dropping an unknown
+        character is not a neutral fallback -- it changes the meaning of the
+        text without saying so. ``"Voltage 5 µV"`` encoded by a vocabulary
+        built from a corpus with no ``µ`` decodes back as ``"Voltage 5 V"``,
+        which is the same sentence with a factor of a million removed, and
+        nothing in the pipeline reports it.
+
+        This also corrects a claim the course used to make: a character
+        tokenizer does NOT make unknown symbols impossible. It makes them
+        impossible *to represent*, which is a different and worse thing. Only a
+        byte-level vocabulary has no out-of-vocabulary set at all.
+
+        Pass ``on_unknown="drop"`` to keep the old lossy behaviour where a
+        corpus is known to be closed, or ``"skip"`` as its alias.
+        """
+        if on_unknown == "raise":
+            missing = sorted({ch for ch in text if ch not in self.stoi})
+            if missing:
+                raise ValueError(
+                    f"{len(missing)} character(s) outside the {self.vocab_size}-symbol "
+                    f"vocabulary: {missing[:8]}. Encoding would silently delete them "
+                    f"and change the text; pass on_unknown='drop' to accept that."
+                )
+        elif on_unknown not in {"drop", "skip"}:
+            raise ValueError(f"on_unknown must be 'raise', 'drop' or 'skip', got {on_unknown!r}")
         return [self.stoi[ch] for ch in text if ch in self.stoi]
 
     def decode(self, ids: list[int] | Tensor) -> str:
