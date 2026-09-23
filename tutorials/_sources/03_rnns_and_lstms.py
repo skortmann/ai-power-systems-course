@@ -529,11 +529,33 @@ axes[1].legend(ncol=4, fontsize=8)
 fig.tight_layout()
 plt.show()
 
-daily = np.corrcoef(hidden.T, np.sin(2 * np.pi * np.arange(CONTEXT) / 24))[:-1, -1]
-print(f"Hidden units correlated with a 24-hour sine (|r| > 0.5): "
-      f"{int((np.abs(daily) > 0.5).sum())} of {hidden.shape[1]}")
-print("Some units have become daily-cycle detectors without ever being told that a day")
-print("has 24 hours. Nobody engineered `hour_sin` into the recurrence — it emerged.")
+# Read this probe carefully, because the obvious version of it is circular.
+#
+# `hour_sin` is CHANNELS[1] -- a 24-hour sine is fed to this network as an
+# input at every timestep. Finding hidden units that correlate with a 24-hour
+# sine therefore shows that the input propagates, which it must. It is not
+# evidence of anything emerging, and reporting it as such would be the single
+# easiest way to overclaim in this whole course.
+t = np.arange(CONTEXT)
+first_harmonic = np.sin(2 * np.pi * t / 24)            # SUPPLIED as hour_sin
+second_harmonic = np.sin(2 * np.pi * 2 * t / 24)       # NOT supplied anywhere
+
+supplied = np.corrcoef(hidden.T, first_harmonic)[:-1, -1]
+emergent = np.corrcoef(hidden.T, second_harmonic)[:-1, -1]
+
+print(f"Hidden units tracking the 24-hour sine (|r| > 0.5): "
+      f"{int((np.abs(supplied) > 0.5).sum())} of {hidden.shape[1]}")
+print("   ^ expected, and NOT interesting: `hour_sin` is an input channel.")
+print(f"Hidden units tracking a 12-hour harmonic (|r| > 0.5): "
+      f"{int((np.abs(emergent) > 0.5).sum())} of {hidden.shape[1]}")
+print("   ^ this one nobody supplied. Load has a twin-peak shape -- a morning")
+print("     rise and an evening rise -- and a 12-hour component is what that")
+print("     looks like in a Fourier basis. Any unit tracking it built it from")
+print("     the load channel and the recurrence.")
+print()
+print("The lesson is the comparison, not either number. 'The network learned the")
+print("daily cycle' would have been a confident, quotable, and circular claim.")
+print("Before believing that a representation emerged, check the input list.")
 
 # %% [markdown]
 # ## 10. Failure analysis

@@ -562,9 +562,21 @@ MODES = {"specialist (from scratch)": "scratch",
 
 transfer_rows = []
 for grid_name, graphs in heldout_graphs.items():
-    baseline = float(
-        torch.cat([g["node_features"][:, 2] for g in graphs[-N_TEST:]]).std() * node_std[2]
-    )
+    # MAE of a mean predictor, not a standard deviation.
+    #
+    # This number is printed in a column headed "vm MAE [pu]" and drawn as the
+    # reference line every method is compared against, so it has to BE an MAE:
+    # E|y - mean|, the mean absolute deviation. A standard deviation is a
+    # different statistic and a larger one -- for Gaussian data it exceeds the
+    # MAD by 1/sqrt(2/pi) = 1.25 -- so using it inflated the trivial baseline by
+    # about 25% and every "we beat the baseline" claim below with it.
+    #
+    # The mean is also taken over the TRAINING graphs, not the test slice. A
+    # baseline that reads the test set's own mean is an oracle, and beating an
+    # oracle is a weaker result than beating a forecast.
+    train_v = torch.cat([g["node_features"][:, 2] for g in graphs[:-N_TEST]])
+    test_v = torch.cat([g["node_features"][:, 2] for g in graphs[-N_TEST:]])
+    baseline = float((test_v - train_v.mean()).abs().mean() * node_std[2])
     transfer_rows.append({"grid": grid_name, "n_train": 0,
                           "method": "predict the mean", "vm MAE [pu]": baseline})
     for n_train in LABEL_BUDGETS:

@@ -269,8 +269,17 @@ print("a decoder, because generating text really is one token at a time.")
 # %% [markdown]
 # ## 7. Power-system application
 #
-# **Identical windows to tutorial 03**, so the LSTM comparison is exact: same
-# context, same horizon, same channels, same splits, same standardisation.
+# **Same window DEFINITION as tutorial 03** — same context, same horizon, same
+# channels, same splits, same standardisation — but *not* the same number of
+# windows: `TRAIN_STRIDE = 4` below takes every fourth training origin, giving
+# 4,333 training windows where tutorial 03 used 17,329.
+#
+# That is deliberate and it is fine for the comparison made *inside this
+# notebook*, because the LSTM is retrained here on exactly the same stride-4
+# data. It is not fine for reading tutorial 03's numbers across: that LSTM saw
+# four times as many training windows, so the leaderboard rows are not a
+# like-for-like fight even though the architectures are both "trained on the
+# same windows".
 
 # %%
 CONTEXT, HORIZON = 168, 24
