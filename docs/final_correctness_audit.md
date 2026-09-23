@@ -4,7 +4,7 @@ This document records an audit of the course's mathematics, implementations and
 results. It is written to be checked, not believed: every claim below names the
 script that produced it and the number it produced.
 
-**The audit found real defects.** Eleven High-severity issues and a larger tail
+**The audit found real defects.** Twelve High-severity issues and a larger tail
 of Medium ones, across the tutorials, the library and the exercise track. The
 most consequential are not crashes — every notebook executed and every test
 passed throughout. They are numbers that were quietly wrong and sentences that
@@ -263,27 +263,98 @@ Verified by experiment, not by reading:
 A split function can be perfectly chronological and the data still contaminated,
 because the contamination is in the *text*. Both of these were live:
 
-**The language-model corpus.** `generate_corpus` appended two extra copies of
-the handbook at the end (`parts += ["", HANDBOOK, "", HANDBOOK]`), and Tutorial
-07 holds out the final 10%. The result:
+**The language-model corpus — two faults, and the second was found by checking
+the direction of the fix.**
 
-```
-before:  65-char validation windows verbatim in train: 66.0%
-         129-char validation windows verbatim in train: 61.6%
-after:   0.2%  /  0.0%
-```
+*Fault one, duplication.* `generate_corpus` appended two extra copies of the
+handbook at the end (`parts += ["", HANDBOOK, "", HANDBOOK]`), and Tutorial 07
+holds out the final 10%, so both repeats landed in validation while the first
+copy stayed in training. 66.0% of sampled 65-character validation windows and
+61.6% of 129-character windows occurred verbatim in training.
 
 The repetition is wanted — a character model needs to see technical vocabulary
 more than once — so the copies stay; they now sit near the front, inside the
-training region. Corpus length is unchanged at 275,906 characters.
+training region.
+
+*Fault two, an unrepresentative split.* Removing the duplication should have
+made validation **harder**. It did the opposite: validation perplexity
+**improved from 3.59 to 1.35**. That is the wrong direction, and chasing it
+found a second defect the first fix had exposed rather than caused.
+
+The records were written in blocks by type, so the held-out tail was **233
+asset records and nothing else** — zero logs, zero disturbance reports —
+against a training mix of 1,400 logs, 220 reports and 87 assets. Validation was
+a different *kind* of text from training, and asset records are the most rigid
+of the three templates, so the reported perplexity measured template completion
+rather than generalisation. Interleaving the record types makes any contiguous
+slice representative:
+
+```
+validation now holds  146 LOG, 28 DISTURBANCE, 35 ASSET
+training holds       1254 LOG, 192 DISTURBANCE, 285 ASSET
+```
+
+*What the fix did and did not do.* Measured across the three states:
+
+| corpus | validation perplexity |
+|---|---|
+| original (handbook repeats in validation) | 3.59 |
+| after A-02 (tail = asset records only) | 1.35 |
+| after A-02b (representative record mix) | **1.33** |
+
+The number did **not** return to 3.59, and it should not be expected to. The
+original 3.59 was measured on handbook *prose*; validation is now operational
+records, because the handbook sits at the front and is training-only by
+construction. Records are templated and close to deterministic once the record
+type is known, so a perplexity near 1 is the honest value for this task rather
+than a symptom of leakage.
+
+The tutorial already says this in the right place — *"These are TEMPLATED
+records... a perplexity near 1 says the model learned the templates, not that
+it would do this on prose"* — which is why the low number needed no further
+correction. What was wrong was the split, not the reading of it.
+
+*How the remaining overlap is judged.* Short-window overlap in templated text
+is coincidence, not contamination, and at a single width the two are
+indistinguishable. They separate by how they behave with length. Genuine
+duplication does not decay — the handbook bug sat at 61.6% even at 129
+characters. Template coincidence does:
+
+```
+40ch 26.3%   65ch 7.2%   90ch 0.7%   128ch 0.0%
+```
+
+The threshold that matters is the model's **context length**, since that is the
+longest continuation it could have memorised. The audit now checks the rate at
+128 characters *and* that the curve decays, rather than picking one width.
 
 **The event-classification dataset.** `generate_event_dataset` returns 880
 templated sentences of which only 718 are distinct. Splitting the raw list put
 **56 of 264 test sentences (21.2%) verbatim into training**, scoring every
-adaptation method in Tutorial 08 — frozen probe, full fine-tune, LoRA,
-head-only — on one-in-five items it had memorised, and flattering the
-higher-capacity methods most, which is precisely the comparison that section
-makes. Now deduplicated before splitting, with an assertion on zero overlap.
+adaptation method in Tutorial 08 on one-in-five items it had memorised. Now
+deduplicated before splitting, with an assertion on zero overlap.
+
+The effect is concentrated rather than broad, which is worth stating precisely
+because the obvious prediction — "every accuracy drops" — is wrong:
+
+| method | before (leaked) | after (deduplicated) |
+|---|---|---|
+| full fine-tuning | 1.000 | 1.000 |
+| LoRA (r=8) | 1.000 | 1.000 |
+| **head only (frozen backbone)** | **0.883** | **0.588** |
+
+The two high-capacity methods were saturated either way — this task is
+templated and easy, which the tutorial already says ("an accuracy near 100%
+here says more about the generator than about the model"). The frozen
+backbone is what the leak was propping up: a linear head on general-purpose
+features can match a near-duplicate it has already seen, and without them it
+loses 29.5 points.
+
+That makes the section's own argument *stronger* and better evidenced. Its
+claim — "the head-only variant is the one that suffers: a frozen
+general-purpose encoder has no power-system-specific features, so a linear
+layer on top can only go so far" — now rests on a 1.000-versus-0.588 gap
+rather than a 1.000-versus-0.883 one that was partly memorisation.
 
 Both are now regression-checked in `scripts/audit.py`.
 
@@ -414,7 +485,8 @@ rhetoric.
 | ID | Location | Issue | Severity | Verification | Fix |
 |---|---|---|---|---|---|
 | **A-01** | `07_language_models.py`, `models/tinygpt.py` | The table claims character tokenization makes unknown symbols "impossible"; `encode` silently **deletes** them. `"Voltage 5 µV"` decodes as `"Voltage 5 V"` — a factor of a million, unreported | **High** | Round-trip on `'Voltage ΔV = 5 µV ⚡'` → `'Voltage V = 5 V '` | `encode` raises by default with the offending characters named; `on_unknown="drop"` keeps the lossy path explicitly. Table corrected: unknown symbols are **possible**, and only a byte vocabulary has none |
-| **A-02** | `corpus.py` | Two extra handbook copies appended at the end put 66% of the LM validation split verbatim into training | **High** | 65-char windows: 66.0% → 0.2%; 129-char: 61.6% → 0.0% | Repeats moved to the front, inside the training region. Corpus length unchanged (275,906) |
+| **A-02** | `corpus.py` | Two extra handbook copies appended at the end put 66% of the LM validation split verbatim into training | **High** | 65-char windows 66.0%, 129-char 61.6% → 0.0% at the 128-char context | Repeats moved to the front, inside the training region |
+| **A-02b** | `corpus.py` | Records were written in blocks by type, so the held-out tail was 233 asset records and **zero** logs or disturbance reports — validation was a different kind of text from training, and the most rigid template of the three | **High** | Validation perplexity *improved* 3.59 → 1.35 when A-02 was fixed, which is the wrong direction for removing a leak. Record counts confirmed it | Record types interleaved, so any contiguous slice is representative (146 LOG / 28 DISTURBANCE / 35 ASSET) |
 | **A-03** | `08_pretrained_llms_and_adaptation.py` | 880 templated sentences hold only 718 distinct; 56 of 264 test rows (21.2%) were verbatim in training, flattering the higher-capacity adaptation methods most | **High** | Measured before/after; overlap 56 → 0 | Deduplicate before splitting, with an assertion on zero overlap |
 | **A-04** | `01_classical_machine_learning.py` | A **15.3%** MAE improvement printed as "1.5% better" beside two MAE numbers, because `skill_score` defaults to RMSE | **High** | 1,878.8 → 1,590.6 MW is 15.3%; the line said 1.5% | Reports the MAE improvement explicitly, and the RMSE skill separately with the reason they differ |
 | **A-05** | `01_classical_machine_learning.py` | Takeaway: "A shuffled split flattered a **Ridge** model by a **double-digit** percentage". The notebook's own table: Ridge 0.9%, random forest 13.6%, 1-NN 29.8% — and the prose four cells earlier says "Ridge barely notices" | **High** | Read from the executed notebook | Names the flexible models and their real numbers, and draws the actual lesson: the more a model can memorise, the more a leaky split rewards it |
@@ -437,7 +509,10 @@ audit whose instruments are unexamined is not evidence.
 | **B-01** | `scripts/audit.py` | Grid check summed only `res_ext_grid` and `res_sgen` | case118 appeared to generate 514 MW against 4,242 MW of load — a false FAIL. case118 carries most of its supply on PV `gen` buses | `res_gen` included; now checks all eight networks |
 | **B-02** | `scripts/audit.py` | Assumed `TinyGPT(vocab_size=…)` and a zero-argument network builder | Two sections silently skipped as REVIEW, leaving TinyGPT causality and grid physics **unchecked** | Real APIs used (`TinyGPTConfig`, `load_network`) |
 | **B-03** | this audit, re-testing the reviewer | Used the CRPS at `z = 0` instead of its expectation as the analytic reference | Appeared to contradict a correct reviewer finding | Corrected to `sigma/sqrt(pi)`; the reviewer was right |
+| **B-08** | `build(do_execute=False)` used as a "staleness check" | It is not a check. It regenerates every notebook from source WITHOUT executing, so it overwrote all ten executed notebooks with output-free ones | Destroyed a completed 45-minute rebuild. Recovered only by re-running it | Verified the destruction immediately after (0 of 179 code cells retained outputs) and re-executed. The rule it broke is the obvious one: look at what a command does to its target before running it on work you cannot cheaply reproduce |
+| **B-07** | `until ! pgrep -f build_notebooks; do sleep; done` | The waiter's own command line contains the string it greps for, so every waiter matched itself and its siblings and none ever exited | Three shells deadlocked for 28 minutes while reporting "rebuild still running"; the build they were waiting to launch never started | Killed by PID and replaced with a job that runs the build directly rather than polling for it. Same family as B-04: a pattern that matches the process using it |
 | **B-04** | `pkill -f ai_rerun` | Matched the audit's own shell | Killed the running rebuild *and* the patch command, which then silently did not apply | Verified the patch had landed before proceeding |
+| **B-06** | the A-02 fix | The first corpus fix removed the duplication but left the split unrepresentative, and would have shipped that way | A leak traded for a confound, with a *better*-looking perplexity to hide it | Caught by checking that the number moved in the predicted DIRECTION, not merely that the notebook ran. Recorded because "verify the fix does what you said it would" is the only reason it surfaced |
 | **B-05** | this report | §4's metric values were written from memory rather than copied from the harness output, and were wrong in every digit after the first (quoted MAE 3.1652338902 against the actual 3.3478697057) | An audit report citing fabricated evidence, in a document whose argument is that claims must match output | Corrected from the harness output. Recorded rather than quietly fixed, because it is the same failure mode as A-04 through A-07 and the author is not exempt from it |
 
 ---
