@@ -7,7 +7,8 @@
 A ten-notebook course that walks from linear regression to grid foundation
 models, building every idea from scratch once and then using the production
 library for it — with electrical power systems as the running application
-throughout.
+throughout. An [optional eleventh tutorial](#optional--advanced) adds federated
+learning for readers who finish the rest.
 
 ```
 Task-specific ML  →  Neural networks  →  Representation learning  →  Attention
@@ -72,6 +73,10 @@ uv run jupyter lab         # then open tutorials/01_classical_machine_learning.i
 That is the whole setup. [`uv`](https://docs.astral.sh/uv/) handles the Python
 version and the lockfile; there is no conda environment to manage.
 
+The install includes everything the optional Tutorial 11 needs (Flower and Ray,
+the largest single component). If you only intend to work through 01–10 it costs
+disk space and nothing else — no notebook in the core course imports them.
+
 <details>
 <summary>Optional extras</summary>
 
@@ -91,8 +96,16 @@ Nothing else changes; every notebook calls `torch_device()`.
 </details>
 
 **Start with tutorial 01** and go in order. Each notebook builds on the previous
-one, and tutorials 01–09 all forecast the same series so the models are directly
-comparable — there is a shared leaderboard that fills up as you go.
+one, and tutorials 01–09 all forecast the same series over the same test period,
+so the models are broadly comparable — there is a shared leaderboard that fills
+up as you go.
+
+One honest caveat the leaderboard states for itself: the feature-based tutorials
+score on forecast origins and the sequence tutorials on windows, which begin 168
+hours later because each needs that much leading context. MAE and RMSE are
+comparable to within that difference; the *skill* column is not comparable across
+the two groups, because each is measured against a different baseline. The table
+shows which.
 
 ---
 
@@ -185,7 +198,7 @@ The domain evolves alongside the method rather than being bolted on at the end:
 ```
 ├── tutorials/              the ten notebooks + optional 11 (committed with outputs)
 │   ├── _sources/           their jupytext sources — edit these, not the .ipynb
-│   ├── exercise.ipynb      44 scaffolded tasks, one chapter per tutorial
+│   ├── exercise.ipynb      51 scaffolded tasks, one chapter per tutorial
 │   └── solution.ipynb      the same tasks, worked and explained
 ├── src/ai_power_course/    the reusable package
 │   ├── data.py             the course dataset, with provenance attached
@@ -195,10 +208,11 @@ The domain evolves alongside the method rather than being bolted on at the end:
 │   ├── diagrams.py         every explanatory figure, as code
 │   ├── models/             baselines, MLP/RNN/LSTM/Transformer, attention, GPT, GNN
 │   ├── grid/               pandapower networks, sampling, graphs, physics checks
+│   ├── federated.py        FedAvg, FedProx, DP primitives (optional tutorial 11)
 │   └── exercises/          the single source for both exercise notebooks
 ├── data/                   see data/README.md for provenance and licensing
 ├── scripts/                data download, grid generation, notebook builds
-├── tests/                  186 tests, including leakage, physics and
+├── tests/                  213 tests, including leakage, physics and
 │                           exercise/solution synchronisation checks
 └── docs/                   literature, timeline, glossary, foundation models,
                             course overview, instructor guide
@@ -214,6 +228,7 @@ The domain evolves alongside the method rather than being bolted on at the end:
 | [`docs/ai_timeline.md`](docs/ai_timeline.md) | 1943 → 2026, with contested priorities flagged |
 | [`docs/glossary.md`](docs/glossary.md) | precise definitions, pointing at where each idea is built |
 | [`docs/instructor_guide.md`](docs/instructor_guide.md) | timings, likely difficulties, discussion questions, expected outcomes |
+| [`docs/final_correctness_audit.md`](docs/final_correctness_audit.md) | **for maintainers, not students** — the record of an independent correctness audit, the defects it found in the course, and the defects it found in its own tooling |
 | [`data/README.md`](data/README.md) | why the shipped data is synthetic and how to get the real thing |
 
 ---
@@ -224,7 +239,7 @@ Two further notebooks turn the tutorials into work you do rather than read.
 
 | | |
 |---|---|
-| [`tutorials/exercise.ipynb`](tutorials/exercise.ipynb) | 44 tasks with scaffolded code — `# TODO` markers, `____` blanks, function signatures with a docstring and no body |
+| [`tutorials/exercise.ipynb`](tutorials/exercise.ipynb) | 51 tasks with scaffolded code — `# TODO` markers, `____` blanks, function signatures with a docstring and no body |
 | [`tutorials/solution.ipynb`](tutorials/solution.ipynb) | every task worked through, with an explanation of *why* each implementation looks the way it does |
 
 Both are generated from one source,
