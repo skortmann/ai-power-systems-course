@@ -1353,7 +1353,21 @@ CHAPTER_08 = Chapter(
                     return torch.cat(out).numpy()
 
                 probe = "Scheduled inspection completed on the overhead line at Nordfeld."
-                padded_batch = [probe, "A" * 400]        # forces heavy padding
+                # A real long SENTENCE, not "A" * 400. A 400-character run of
+                # one letter is a single unknown word to MiniLM's WordPiece
+                # vocabulary -- 3 tokens with the specials, SHORTER than the
+                # 13-token probe. The batch therefore had no padding at all,
+                # and the demonstration of a padding bug showed nothing but
+                # float noise (1.3e-07) while the text narrated a large effect.
+                # This mate tokenizes to 131 tokens, so the probe really is
+                # padded with ~118 pad positions.
+                filler = (
+                    "The maintenance crew reported that the transformer at the "
+                    "substation had been inspected, tested, cleaned, and returned "
+                    "to service after the scheduled outage, and that no further "
+                    "action was required before the next inspection interval. "
+                ) * 3
+                padded_batch = [probe, filler]           # forces heavy padding
                 alone = embed([probe])[0]
                 batched_ok = embed(padded_batch, masked=True)[0]
                 batched_bad = embed(padded_batch, masked=False)[0]
@@ -1390,7 +1404,21 @@ CHAPTER_08 = Chapter(
                     return torch.cat(out).numpy()
 
                 probe = "Scheduled inspection completed on the overhead line at Nordfeld."
-                padded_batch = [probe, "A" * 400]        # forces heavy padding
+                # A real long SENTENCE, not "A" * 400. A 400-character run of
+                # one letter is a single unknown word to MiniLM's WordPiece
+                # vocabulary -- 3 tokens with the specials, SHORTER than the
+                # 13-token probe. The batch therefore had no padding at all,
+                # and the demonstration of a padding bug showed nothing but
+                # float noise (1.3e-07) while the text narrated a large effect.
+                # This mate tokenizes to 131 tokens, so the probe really is
+                # padded with ~118 pad positions.
+                filler = (
+                    "The maintenance crew reported that the transformer at the "
+                    "substation had been inspected, tested, cleaned, and returned "
+                    "to service after the scheduled outage, and that no further "
+                    "action was required before the next inspection interval. "
+                ) * 3
+                padded_batch = [probe, filler]           # forces heavy padding
                 alone = embed([probe])[0]
                 batched_ok = embed(padded_batch, masked=True)[0]
                 batched_bad = embed(padded_batch, masked=False)[0]

@@ -1903,10 +1903,13 @@ CHAPTER_04 = Chapter(
                 return score
 
             print("Linear readout from the 8-dimensional embedding:")
+            # Collect the R2 of each probe here -- the self-check below reads
+            # `scores["daily PV share"]`, so the name and the keys matter.
+            scores = {}
             for name, values in [("daily PV share", pv_share),
                                  ("mean temperature", temperature),
                                  ("is it a weekend?", is_weekend)]:
-                linear_probe(embeddings, values, name)
+                scores[name] = linear_probe(embeddings, values, name)
             """,
             solution_code="""
             import matplotlib.pyplot as plt
