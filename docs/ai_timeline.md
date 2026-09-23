@@ -86,7 +86,8 @@ and they largely still are (tutorials 01 and 02 reproduce that result).
 
 | year | event |
 |---|---|
-| **2024** | **Chronos**, **TimesFM**, **Moirai**, **MOMENT**, **TinyTimeMixers** — time-series FMs arrive in force |
+| **2023** | **TimesFM** — [arXiv:2310.10688](https://arxiv.org/abs/2310.10688), October. Published at ICML 2024, which is where it is usually dated; this timeline dates the preprint, as stated above |
+| **2024** | **Chronos**, **Moirai**, **MOMENT**, **TinyTimeMixers** — time-series FMs arrive in force (arXiv 2403.07815, 2402.02592, 2402.03885, 2401.03955) |
 | 2024 | **Aurora** (Earth system); AlphaFold 3; OpenVLA, Octo, π0 (robotics) |
 | **2024-07** | **"Foundation Models for the Electric Power Grid"** (Hamann et al., *Joule*) — the GridFM agenda |
 | 2024-08 | **PowerPM** (NeurIPS 2024) — electricity time series, masked + contrastive pretraining |

@@ -241,3 +241,44 @@ def test_learned_models_should_beat_the_baselines(frame):
     suite = baseline_suite(frame.load_mw, y_test.index, horizon=24, train=train.load_mw)
     best_baseline = min(mae(y_test, values) for values in suite.values())
     assert mae(y_test, model.predict(X_test)) < best_baseline
+
+
+def test_leaderboard_surfaces_the_reference_each_row_was_scored_against():
+    """Skill is only comparable between rows scored against the same baseline.
+
+    The feature-based tutorials evaluate on `make_supervised` forecast origins
+    and the sequence tutorials on `make_windows` windows, which begin 168 hours
+    later. Same series, same test period, different samples -- so the seasonal
+    naive they each score against differs, and the Skill column cannot be read
+    straight down as a ranking. The table has to SAY that rather than imply
+    otherwise, which is what Reference_RMSE is for.
+    """
+    from ai_power_course.results import leaderboard_table, reference_groups
+
+    frame = leaderboard_table()
+    if frame.empty or "Skill" not in frame.columns:
+        pytest.skip("no leaderboard entries recorded yet")
+
+    assert "Reference_RMSE" in frame.columns, (
+        "the leaderboard must expose which baseline each row was scored against"
+    )
+    scored = frame["Reference_RMSE"].dropna()
+    assert not scored.empty
+
+    # Recovered reference must reproduce the stored skill.
+    for (_tutorial, model), reference in scored.items():
+        row = frame.loc[(_tutorial, model)]
+        implied = 1.0 - row["RMSE"] / reference
+        assert implied == pytest.approx(row["Skill"], abs=1e-3), (
+            f"{model}: Reference_RMSE does not reproduce the stored Skill"
+        )
+
+    # And the table must sort by MAE, not by Skill, precisely because more than
+    # one reference is in play.
+    groups = reference_groups()
+    if len(groups) > 1:
+        mae = frame["MAE"].to_numpy()
+        assert (mae[:-1] <= mae[1:] + 1e-9).all(), (
+            "with several reference baselines present the leaderboard must be "
+            "ordered by MAE, which is comparable, rather than by Skill, which is not"
+        )
