@@ -509,8 +509,18 @@ reference = baselines[reference_name]
 
 linear = LinearRegression().fit(X_train, y_train)
 boosting_started = time.perf_counter()
+# early_stopping=False, matching tutorial 01's configuration exactly.
+#
+# The default is "auto", which switches early stopping ON above 10,000 samples
+# -- and this training set is larger than that. sklearn then carves a RANDOM
+# validation split out of what is a TIME SERIES, which is precisely the leak
+# tutorial 01 spends a whole section warning about, and it also trains the
+# model on 10% less data than the notebook says it does. It is why this
+# contender used to score differently from tutorial 01's otherwise identical
+# one.
 boosting = HistGradientBoostingRegressor(
-    max_iter=scaled(full=400, fast=60), learning_rate=0.06, random_state=0
+    max_iter=scaled(full=400, fast=60), learning_rate=0.06,
+    early_stopping=False, random_state=0,
 ).fit(X_train, y_train)
 boosting_seconds = time.perf_counter() - boosting_started
 

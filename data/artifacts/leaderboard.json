@@ -12,7 +12,7 @@
     "model": "Gradient boosting",
     "n_parameters": null,
     "notes": "engineered lag + calendar features",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -30,7 +30,7 @@
     "model": "Linear regression",
     "n_parameters": null,
     "notes": "engineered lag + calendar features",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -38,7 +38,7 @@
   "load_day_ahead::01::Random forest": {
     "extra": {},
     "metrics": {
-      "Bias": 228.20528409454897,
+      "Bias": 228.20528409454906,
       "MAE": 1636.5039202719606,
       "MAPE_%": 3.067255484535032,
       "R2": 0.8891172816211343,
@@ -48,7 +48,7 @@
     "model": "Random forest",
     "n_parameters": null,
     "notes": "engineered lag + calendar features",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -66,7 +66,7 @@
     "model": "climatology (hour x weekday)",
     "n_parameters": null,
     "notes": "trivial baseline",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -84,7 +84,7 @@
     "model": "persistence (h=24) = seasonal naive (24 h)",
     "n_parameters": null,
     "notes": "trivial baseline",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -102,7 +102,7 @@
     "model": "seasonal naive (168 h)",
     "n_parameters": null,
     "notes": "trivial baseline",
-    "recorded_at": "2026-09-23T08:12:30+00:00",
+    "recorded_at": "2026-09-23T11:42:20+00:00",
     "task": "load_day_ahead",
     "train_seconds": null,
     "tutorial": 1
@@ -120,9 +120,9 @@
     "model": "MLP (2 hidden layers)",
     "n_parameters": 11777,
     "notes": "same engineered features as tutorial 01",
-    "recorded_at": "2026-09-23T08:13:06+00:00",
+    "recorded_at": "2026-09-23T11:42:54+00:00",
     "task": "load_day_ahead",
-    "train_seconds": 5.069914745981805,
+    "train_seconds": 5.2862868570082355,
     "tutorial": 2
   },
   "load_day_ahead::03::LSTM": {
@@ -138,9 +138,9 @@
     "model": "LSTM",
     "n_parameters": 19992,
     "notes": "raw 168 h window, 6 channels",
-    "recorded_at": "2026-09-23T08:17:16+00:00",
+    "recorded_at": "2026-09-23T11:47:07+00:00",
     "task": "load_day_ahead",
-    "train_seconds": 84.23217589300475,
+    "train_seconds": 85.81701585600968,
     "tutorial": 3
   },
   "load_day_ahead::03::Vanilla RNN": {
@@ -156,9 +156,9 @@
     "model": "Vanilla RNN",
     "n_parameters": 6104,
     "notes": "raw 168 h window, 6 channels",
-    "recorded_at": "2026-09-23T08:17:16+00:00",
+    "recorded_at": "2026-09-23T11:47:07+00:00",
     "task": "load_day_ahead",
-    "train_seconds": 145.10984277899843,
+    "train_seconds": 146.48951862100512,
     "tutorial": 3
   },
   "load_day_ahead::06::Transformer (encoder, 2 layers)": {
@@ -174,9 +174,9 @@
     "model": "Transformer (encoder, 2 layers)",
     "n_parameters": 102104,
     "notes": "raw 168 h window, 6 channels, stride-4 training",
-    "recorded_at": "2026-09-23T08:35:58+00:00",
+    "recorded_at": "2026-09-23T12:05:48+00:00",
     "task": "load_day_ahead",
-    "train_seconds": 281.1437612489972,
+    "train_seconds": 283.661024052999,
     "tutorial": 6
   },
   "load_day_ahead_daily_origins::09::Chronos-2 (zero-shot)": {
@@ -192,7 +192,7 @@
     "model": "Chronos-2 (zero-shot)",
     "n_parameters": null,
     "notes": "365 daily origins, 512 h context, full 24 h horizon",
-    "recorded_at": "2026-09-23T08:47:50+00:00",
+    "recorded_at": "2026-09-23T12:17:33+00:00",
     "task": "load_day_ahead_daily_origins",
     "train_seconds": null,
     "tutorial": 9
@@ -210,7 +210,7 @@
     "model": "Gradient boosting (specialist)",
     "n_parameters": null,
     "notes": "365 daily origins, 512 h context, full 24 h horizon",
-    "recorded_at": "2026-09-23T08:47:50+00:00",
+    "recorded_at": "2026-09-23T12:17:33+00:00",
     "task": "load_day_ahead_daily_origins",
     "train_seconds": null,
     "tutorial": 9
@@ -228,7 +228,7 @@
     "model": "LSTM (specialist)",
     "n_parameters": null,
     "notes": "365 daily origins, 512 h context, full 24 h horizon",
-    "recorded_at": "2026-09-23T08:47:50+00:00",
+    "recorded_at": "2026-09-23T12:17:33+00:00",
     "task": "load_day_ahead_daily_origins",
     "train_seconds": null,
     "tutorial": 9
