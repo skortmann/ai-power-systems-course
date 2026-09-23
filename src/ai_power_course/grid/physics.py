@@ -157,9 +157,37 @@ def physical_report(
     v_min: float = 0.95,
     v_max: float = 1.05,
 ) -> dict[str, float]:
-    """Everything above in one dict, for a compact notebook table."""
+    """Physical checks on a PREDICTED voltage state, plus the network's own loading.
+
+    Read the key names: they say which quantity is which, and the distinction
+    matters more than it looks.
+
+    ``voltage_violations`` and ``power_balance_residual`` are computed FROM
+    ``vm_pu``/``va_degree`` -- they are checks on the prediction, and a bad
+    prediction moves them. ``line_loading_violations`` is not: it reads
+    ``net.res_line.loading_percent``, the converged solution already stored on
+    the network, and is therefore identical for every prediction you pass.
+
+    Returning both under one flat dict previously made three columns of a table
+    headed "physical checks on the prediction" into the answer key: feeding a
+    nonsense state (all 0.80 pu, 0 deg) to case14 moves ``p_mismatch_max_mw``
+    from 0.0 to 232.4 and ``violation_rate`` from 0.0 to 1.0, while
+    ``max_loading_percent`` stays bit-identical at 1.5076. The ``truth_`` prefix
+    below says so at the point of use.
+
+    Computing loading from the predicted state is the better answer and is
+    straightforward in principle -- ``ppc["internal"]["Yf"]`` gives branch
+    currents from any voltage vector, and that route reproduces pandapower's
+    ``loading_percent`` to 1e-12 on case14, case30 and case118 -- but the
+    internal-branch-to-element mapping does not hold on every catalogued
+    network (case33bw disagrees, 32 rows against 37 elements), so it is not
+    done here rather than done unreliably.
+    """
+    truth_loading = {
+        f"truth_{key}": value for key, value in line_loading_violations(net).items()
+    }
     return {
         **voltage_violations(vm_pu, v_min, v_max),
         **power_balance_residual(net, vm_pu, va_degree),
-        **line_loading_violations(net),
+        **truth_loading,
     }

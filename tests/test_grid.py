@@ -174,7 +174,21 @@ def test_line_loading_and_full_report(solved_case14):
     assert loading["max_loading_percent"] >= 0
     vm, va = internal_state(solved_case14)
     report = physical_report(solved_case14, vm, va)
-    assert {"violation_rate", "p_mismatch_max_mw", "overload_rate"} <= set(report)
+    assert {"violation_rate", "p_mismatch_max_mw", "truth_overload_rate"} <= set(report)
+
+    # The prefix is load-bearing, so test what it promises: the prediction-based
+    # entries must respond to a nonsense state and the truth-based ones must not.
+    nonsense = physical_report(
+        solved_case14, np.full_like(vm, 0.80), np.zeros_like(va)
+    )
+    assert nonsense["violation_rate"] > report["violation_rate"]
+    assert nonsense["p_mismatch_max_mw"] > report["p_mismatch_max_mw"]
+    for key in report:
+        if key.startswith("truth_"):
+            assert nonsense[key] == report[key], (
+                f"{key} claims to describe the network's own solution but moved "
+                f"when the predicted state changed"
+            )
 
 
 def test_complex_voltage_roundtrip():
